@@ -1,0 +1,4178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VARSHA — Severe Weather Ops Center</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A9%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+/* ═══════════════════════════════════════════════════════════════════
+   VARSHA — Severe Weather Ops Center
+   Color System: Earthy weather tones, NO blue/purple AI aesthetic
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+    --bg-primary:     #0f0f12;
+    --bg-secondary:   #17171c;
+    --bg-card:        #1c1c24;
+    --bg-ocean:       #0a0e14;
+    --bg-card-hover:  #222230;
+    --bg-input:       #1c1c24;
+    --border:         #2a2a35;
+    --border-light:   #3a3a48;
+
+    --text-primary:   #e8e6e1;
+    --text-secondary: #9a9a9a;
+    --text-muted:     #6b6b6b;
+
+    --accent:         #d4940a;
+    --accent-bright:  #f0a500;
+    --accent-dim:     #9e7008;
+
+    --severe:         #c62828;
+    --severe-bg:      #2a0a0a;
+    --warning:        #d4690a;
+    --warning-bg:     #2a1a08;
+    --watch:          #a68a0a;
+    --watch-bg:       #2a2408;
+    --safe:           #1a8a50;
+    --safe-bg:        #082a16;
+
+    --font-sans:      'Inter', -apple-system, sans-serif;
+    --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
+    --shadow-card:    0 2px 8px rgba(0,0,0,0.35);
+}
+
+[data-theme="light"] {
+    --bg-primary:     #f1f5f9;
+    --bg-secondary:   #ffffff;
+    --bg-card:        #ffffff;
+    --bg-ocean:       #cfe3f0;
+    --bg-card-hover:  #f8fafc;
+    --bg-input:       #ffffff;
+    --border:         #cbd5e1;
+    --border-light:   #94a3b8;
+
+    --text-primary:   #0f172a;
+    --text-secondary: #475569;
+    --text-muted:     #64748b;
+
+    --accent:         #b47a06;
+    --accent-bright:  #c88405;
+    --accent-dim:     #925f03;
+
+    --severe:         #dc2626;
+    --severe-bg:      #fef2f2;
+    --warning:        #ea580c;
+    --warning-bg:     #fff7ed;
+    --watch:          #b45309;
+    --watch-bg:       #fefce8;
+    --safe:           #15803d;
+    --safe-bg:        #f0fdf4;
+    --shadow-card:    0 2px 6px rgba(0,0,0,0.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ══════════════ TOP NAV ══════════════ */
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+    padding: 6px 20px;
+    border-bottom: 1px solid var(--border);
+    min-height: 52px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.nav-left, .nav-right { display: flex; align-items: center; gap: 14px; }
+.logo-block { display: flex; align-items: center; gap: 12px; }
+.brand-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--border);
+    box-shadow: 0 0 10px rgba(212, 148, 10, 0.2);
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+.brand-logo:hover {
+    transform: scale(1.06);
+}
+.logo {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--accent-bright);
+    letter-spacing: 2px;
+    line-height: 1.1;
+}
+.logo-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.system-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--safe);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.status-dot {
+    width: 7px; height: 7px;
+    background: var(--safe);
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(26, 138, 80, 0.6); }
+    50% { box-shadow: 0 0 0 5px rgba(26, 138, 80, 0); }
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 5px 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.theme-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent-bright);
+    background: var(--bg-card-hover);
+}
+
+.nav-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.mono-val { font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
+.mono-val.accent { color: var(--accent-bright); font-weight: 500; }
+.nav-divider { color: var(--border); }
+
+/* ══════════════ TAB BAR ══════════════ */
+.tab-bar {
+    display: flex;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    gap: 0;
+}
+.tab-btn {
+    background: none; border: none;
+    color: var(--text-muted);
+    padding: 10px 22px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.tab-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.03); }
+.tab-btn.active { color: var(--accent-bright); border-bottom-color: var(--accent-bright); }
+.tab-icon { font-size: 14px; }
+.alert-count-badge {
+    background: var(--severe);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+}
+
+/* ══════════════ CONTENT AREA ══════════════ */
+.content-area { flex: 1; overflow: hidden; position: relative; }
+.tab-content { display: none; height: 100%; padding: 12px; overflow: auto; }
+.tab-content.active { display: block; }
+
+/* ══════════════ DASHBOARD LAYOUT ══════════════ */
+.dashboard-layout { display: flex; height: 100%; gap: 12px; }
+.map-panel { flex: 1; display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--bg-ocean); }
+.map-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+.toolbar-label { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 1.5px; }
+.toolbar-btns { display: flex; gap: 4px; }
+.map-canvas-wrap { flex: 1; position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; z-index: 1; }
+#map.map-dark-filter .leaflet-tile-pane {
+    filter: invert(92%) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.85);
+}
+
+.map-tile-notice {
+    position: absolute;
+    top: 52px;
+    left: 12px;
+    right: 12px;
+    z-index: 1150;
+    background: rgba(214, 158, 46, 0.97);
+    color: #1a1200;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    line-height: 1.5;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.map-tile-notice strong { display: block; margin-bottom: 2px; }
+.map-tile-notice button {
+    background: none;
+    border: none;
+    color: #1a1200;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+    flex-shrink: 0;
+}
+
+.map-title-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1100;
+    background: rgba(7, 21, 37, 0.9);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    color: #fff;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.map-risk-legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    z-index: 1100;
+    width: 220px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #d9dee4;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.map-risk-legend .legend-title {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 700;
+    color: #132238;
+    margin-bottom: 8px;
+}
+.map-risk-legend .legend-bar {
+    height: 9px;
+    margin: 0 0 4px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #24c7a5, #d5db45, #ffb52e, #ff4d38, #b90024);
+}
+.map-risk-legend .legend-ticks {
+    display: flex;
+    justify-content: space-between;
+    color: #68778a;
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.sidebar {
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+}
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 10px;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-light);
+    box-shadow: var(--shadow-card);
+}
+.stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.stat-value {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    transition: color 0.2s ease;
+}
+.stat-breakdown { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); margin-top: 2px; }
+
+.feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+.feed-header h3 { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+.feed-live-dot {
+    width: 6px; height: 6px;
+    background: var(--severe);
+    border-radius: 50%;
+    animation: pulse-dot 1.5s infinite;
+}
+.alerts-feed {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.feed-empty {
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Skeleton shimmer — shown briefly while first data load resolves */
+@keyframes skeleton-shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+.skeleton-line {
+    height: 12px;
+    border-radius: 2px;
+    margin: 6px 0;
+    background: linear-gradient(90deg, var(--bg-card) 0%, var(--bg-card-hover) 50%, var(--bg-card) 100%);
+    background-size: 400px 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.alert-item {
+    background: var(--bg-card);
+    border-left: 3px solid var(--border);
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.alert-item:hover { background: var(--bg-card-hover); }
+.alert-item.alert-severe  { border-left-color: var(--severe); background: var(--severe-bg); }
+.alert-item.alert-warning { border-left-color: var(--warning); background: var(--warning-bg); }
+.alert-item.alert-watch   { border-left-color: var(--watch); background: var(--watch-bg); }
+.alert-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.alert-station { font-weight: 600; font-size: 12px; }
+.alert-level-tag {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.tag-severe  { background: var(--severe); color: #fff; }
+.tag-warning { background: var(--warning); color: #fff; }
+.tag-watch   { background: var(--watch); color: #000; }
+.alert-details { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+
+/* ══════════════ BUTTONS ══════════════ */
+.map-btn, .action-btn {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.1s;
+    font-weight: 500;
+}
+.map-btn:hover, .action-btn:hover { background: var(--border); color: var(--text-primary); }
+.map-btn.active-layer { background: var(--accent-dim); color: #fff; border-color: var(--accent); }
+
+/* ══════════════ ALERTS TAB ══════════════ */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+select, input[type="date"], .search-input {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    outline: none;
+}
+select:focus, input:focus, .search-input:focus { border-color: var(--accent-dim); }
+.alerts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 10px;
+}
+.alert-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.alert-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
+    border-color: var(--border-light);
+}
+.alert-badge {
+    padding: 8px 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+.badge-severe  { background: var(--severe); color: #fff; }
+.badge-warning { background: var(--warning); color: #fff; }
+.badge-watch   { background: var(--watch); color: #111; }
+.alert-card-body { padding: 10px 12px; }
+.alert-card-body h4 { font-size: 14px; margin-bottom: 2px; }
+.alert-meta { color: var(--text-muted); font-size: 11px; margin-bottom: 6px; }
+.alert-data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    margin: 6px 0;
+}
+.alert-data-grid .data-label { color: var(--text-muted); }
+.alert-triggers { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+.alert-triggers li { margin-left: 14px; margin-bottom: 2px; }
+.alert-action {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: rgba(255,255,255,0.03);
+    border-left: 2px solid var(--accent);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* ══════════════ STATIONS TAB ══════════════ */
+.station-search-bar { margin-bottom: 10px; }
+.search-input { width: 300px; }
+.table-container { overflow: auto; max-height: calc(100vh - 170px); }
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+.data-table th, .data-table td {
+    padding: 7px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.data-table th {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    cursor: pointer;
+    user-select: none;
+}
+.data-table th:hover { color: var(--text-primary); }
+.data-table th.sorted-asc, .data-table th.sorted-desc { color: var(--accent-bright); }
+.data-table th.sorted-asc::after { content: ' ▲'; font-size: 9px; }
+.data-table th.sorted-desc::after { content: ' ▼'; font-size: 9px; }
+
+/* ══════════════ ACCESSIBLE FOCUS STATES ══════════════ */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+.tab-btn:focus-visible,
+.data-table th:focus-visible,
+.alert-item:focus-visible {
+    outline: 2px solid var(--accent-bright);
+    outline-offset: 1px;
+}
+.data-table tbody tr { cursor: pointer; transition: background 0.08s; }
+.data-table tbody tr:hover { background: var(--bg-card-hover); }
+.data-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.01); }
+.data-table tbody tr:nth-child(even):hover { background: var(--bg-card-hover); }
+
+.level-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.level-severe  { background: var(--severe); color: #fff; }
+.level-warning { background: var(--warning); color: #fff; }
+.level-watch   { background: var(--watch); color: #111; }
+.level-safe    { background: var(--safe-bg); color: var(--safe); border: 1px solid var(--safe); }
+
+/* ══════════════ MODAL ══════════════ */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 2000;
+    overflow-y: auto;
+}
+.modal-content {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    margin: 3% auto;
+    padding: 20px;
+    width: 92%;
+    max-width: 1100px;
+    position: relative;
+}
+.close-btn {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+}
+.close-btn:hover { color: var(--text-primary); }
+.modal-content h2 { font-size: 18px; margin-bottom: 12px; color: var(--accent-bright); }
+.modal-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.modal-stat-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+.modal-stat-chip .chip-label { color: var(--text-muted); font-size: 10px; display: block; }
+.station-dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.chart-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 12px;
+    height: 280px;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.chart-box h3 {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+.chart-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    height: 225px;
+    max-height: 225px;
+}
+.chart-wrapper canvas {
+    max-height: 225px !important;
+    width: 100% !important;
+}
+.xai-text-box {
+    overflow-y: auto;
+    flex: 1;
+}
+.xai-text {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+.xai-text .trigger-item {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+}
+.xai-text .trigger-item:last-child { border-bottom: none; }
+
+/* ══════════════ MODEL INFO TAB ══════════════ */
+.model-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 14px;
+}
+.info-card.span-2 { grid-column: span 2; }
+.info-card h3 {
+    color: var(--accent);
+    font-size: 13px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.3px;
+}
+.architecture-diagram {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.8;
+    color: var(--safe);
+    padding: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+}
+.info-list { list-style: none; }
+.info-list li {
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+.info-list li:last-child { border-bottom: none; }
+.info-list .il-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 1px; }
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+.metrics-table th, .metrics-table td {
+    padding: 6px 10px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+}
+.metrics-table th {
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+}
+.metrics-table td:first-child { text-align: left; font-weight: 600; }
+
+/* ══════════════ HISTORICAL TAB ══════════════ */
+.historical-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    margin-top: 12px;
+}
+.historical-table th, .historical-table td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+.historical-table th {
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.positive-err { color: var(--warning); }
+.negative-err { color: var(--safe); }
+.text-muted { color: var(--text-muted); }
+
+/* ══════════════ TOAST NOTIFICATIONS ══════════════ */
+#toast-container {
+    position: fixed;
+    top: 60px;
+    right: 16px;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.toast {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    font-size: 12px;
+    min-width: 280px;
+    max-width: 360px;
+    animation: slide-in 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.toast.toast-severe  { border-left-color: var(--severe); }
+.toast.toast-warning { border-left-color: var(--warning); }
+.toast.toast-watch   { border-left-color: var(--watch); }
+.toast-title { font-weight: 600; margin-bottom: 2px; }
+.toast-body { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
+@keyframes slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* ══════════════ RISK GLOW MARKERS ══════════════ */
+.risk-glow-marker {
+    position: relative;
+    background: transparent !important;
+    border: none !important;
+}
+.risk-glow-halo {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.risk-glow-core {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+.risk-glow-marker:hover .risk-glow-core { transform: translate(-50%, -50%) scale(1.15); }
+/* ══════════════ LEAFLET OVERRIDES ══════════════ */
+.leaflet-container {
+    background: var(--bg-ocean) !important;
+    font-family: var(--font-sans);
+}
+.leaflet-popup-content-wrapper {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 2px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6) !important;
+}
+.leaflet-popup-tip { background: var(--bg-card) !important; }
+.leaflet-popup-content { font-family: var(--font-sans); font-size: 12px; margin: 10px !important; }
+
+/* ══════════════ NAV TOOLBAR BUTTONS ══════════════ */
+.nav-tool-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 2px;
+    transition: all 0.12s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+.nav-tool-btn:hover { border-color: var(--accent); color: var(--accent-bright); background: var(--bg-card-hover); }
+.nav-tool-btn.active { background: var(--accent-dim); color: #fff; border-color: var(--accent); }
+.nav-tool-btn.muted { opacity: 0.5; }
+
+/* ══════════════ TIMELINE SCRUBBER ══════════════ */
+.timeline-scrubber {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1500;
+    min-height: 40px;
+    transition: transform 0.25s ease, background-color 0.2s ease;
+}
+.timeline-scrubber.hidden { transform: translateY(100%); }
+.timeline-play-btn {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: #fff;
+    width: 30px; height: 30px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.timeline-play-btn:hover { background: var(--accent); }
+.timeline-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 38px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.timeline-range {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+}
+.timeline-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent-bright);
+    border-radius: 50%;
+    cursor: grab;
+}
+.timeline-range::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--accent-bright);
+    border: none;
+    border-radius: 50%;
+    cursor: grab;
+}
+.timeline-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    padding: 0 2px;
+    flex: 1;
+}
+
+/* ══════════════ MAP INSPECTOR SIDEBAR ══════════════ */
+.map-inspector {
+    position: fixed;
+    top: 52px; /* below top-nav */
+    right: 0;
+    width: 340px;
+    bottom: 0;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    z-index: 1200;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    padding: 16px;
+}
+.map-inspector.open { transform: translateX(0); }
+.map-inspector-close {
+    position: absolute;
+    top: 8px; right: 12px;
+    background: none; border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+}
+.map-inspector-close:hover { color: var(--text-primary); }
+.map-inspector h3 {
+    font-size: 14px;
+    color: var(--accent-bright);
+    margin-bottom: 12px;
+    padding-right: 24px;
+}
+.inspector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+.inspector-grid .ig-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; }
+.inspector-grid .ig-value { font-weight: 600; }
+.inspector-section {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+.inspector-section h4 {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* ══════════════ BASIN FILTER ══════════════ */
+#filter-basin {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    outline: none;
+}
+#filter-basin:focus { border-color: var(--accent-dim); }
+
+/* ══════════════ WALL MODE (FULLSCREEN) ══════════════ */
+body.wall-mode .top-nav,
+body.wall-mode .tab-bar,
+body.wall-mode .timeline-scrubber { display: none !important; }
+body.wall-mode .content-area { height: 100vh; }
+body.wall-mode .sidebar { display: none; }
+body.wall-mode .map-panel { height: 100vh; }
+body.wall-mode .dashboard-layout { height: 100vh; }
+
+/* Exit wall-mode button floats */
+.wall-exit-btn {
+    position: fixed;
+    top: 12px; right: 12px;
+    z-index: 2500;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: none;
+}
+body.wall-mode .wall-exit-btn { display: block; }
+
+/* ══════════════ KEYBOARD SHORTCUTS MODAL ══════════════ */
+.shortcuts-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 3500;
+    justify-content: center;
+    align-items: center;
+}
+.shortcuts-modal.open { display: flex; }
+.shortcuts-body {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    padding: 24px;
+    max-width: 480px;
+    width: 90%;
+}
+.shortcuts-body h3 {
+    color: var(--accent-bright);
+    font-size: 15px;
+    margin-bottom: 14px;
+}
+.shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.shortcut-row:last-child { border-bottom: none; }
+.shortcut-key {
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 1px 8px;
+    font-size: 11px;
+    color: var(--accent);
+}
+
+/* ══════════════ LOW BANDWIDTH MODE ══════════════ */
+body.low-band .chart-box,
+body.low-band .chart-wrapper,
+body.low-band canvas { image-rendering: pixelated; }
+body.low-band .alert-item,
+body.low-band .stat-card,
+body.low-band .toast { transition: none !important; }
+body.low-band .status-dot,
+body.low-band .feed-live-dot { animation: none !important; }
+body.low-band .brand-logo { transition: none !important; }
+
+/* ══════════════ RESPONSIVE (basic) ══════════════ */
+/* ══════════════ MOBILE NAV OVERFLOW MENU ══════════════ */
+.nav-more-btn {
+    display: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 2px;
+}
+.nav-tools-group { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 900px) {
+    .dashboard-layout { flex-direction: column; }
+    .sidebar { width: 100%; max-height: 40vh; }
+    .model-info-grid { grid-template-columns: 1fr; }
+    .info-card.span-2 { grid-column: span 1; }
+    .station-dashboard { grid-template-columns: 1fr; }
+    .map-inspector { width: 100%; }
+    .nav-right { flex-wrap: wrap; gap: 6px; }
+    .nav-tool-btn span:not(:first-child) { display: none; }
+}
+
+@media (max-width: 700px) {
+    /* Collapse the individual tool buttons behind a single "☰ Tools" toggle
+       so the top nav doesn't overflow on narrow/mobile screens. */
+    .nav-more-btn { display: inline-flex; align-items: center; gap: 4px; }
+    .nav-tools-group {
+        display: none;
+        position: absolute;
+        top: 48px;
+        right: 12px;
+        flex-direction: column;
+        align-items: stretch;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 6px;
+        gap: 4px;
+        box-shadow: var(--shadow-card);
+        z-index: 2200;
+    }
+    .nav-tools-group.open { display: flex; }
+    .nav-tools-group .nav-tool-btn { justify-content: flex-start; width: 100%; }
+    .nav-tools-group .nav-tool-btn span:not(:first-child) { display: inline; }
+
+    /* Stations table → stacked cards. Each <tr> becomes a card, each <td>
+       a labeled row, using the data-label attribute the JS render adds. */
+    .table-container { max-height: none; }
+    #stations-table thead { display: none; }
+    #stations-table, #stations-table tbody, #stations-table tr, #stations-table td {
+        display: block;
+        width: 100%;
+    }
+    #stations-table tr {
+        border: 1px solid var(--border);
+        margin-bottom: 8px;
+        padding: 6px 10px;
+        background: var(--bg-card);
+    }
+    #stations-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        padding: 6px 0;
+        white-space: normal;
+    }
+    #stations-table td:last-child { border-bottom: none; }
+    #stations-table td::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-family: var(--font-sans);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        margin-right: 10px;
+    }
+}
+
+</style>
+</head>
+<body>
+    <!-- ═══════════════ TOP NAV ═══════════════ -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <div class="logo-block">
+                <svg class="brand-logo" viewBox="0 0 48 48" role="img" aria-label="VARSHA Emblem">
+                    <circle cx="24" cy="24" r="22" fill="#17171c" stroke="#d4940a" stroke-width="1.5"/>
+                    <path d="M24 10c5 7 9 12.2 9 17.2A9 9 0 1 1 15 27.2C15 22.2 19 17 24 10Z" fill="#1a8a50" opacity="0.9"/>
+                    <path d="M24 16c3.2 4.6 5.6 7.9 5.6 11.2A5.6 5.6 0 1 1 18.4 27.2c0-3.3 2.4-6.6 5.6-11.2Z" fill="#f0a500"/>
+                </svg>
+                <div>
+                    <h1 class="logo">VARSHA</h1>
+                    <span class="logo-sub">Severe Weather Early Warning System</span>
+                </div>
+            </div>
+            <span class="system-status"><span class="status-dot"></span>OPERATIONAL</span>
+        </div>
+        <div class="nav-right">
+            <button class="nav-more-btn" id="btn-nav-more" aria-label="More tools" aria-expanded="false" aria-controls="nav-tools-group">☰ Tools</button>
+            <div class="nav-tools-group" id="nav-tools-group">
+                <button class="nav-tool-btn" id="btn-wind" title="Toggle Wind Vectors" aria-label="Toggle wind vector overlay">💨 <span>Wind</span></button>
+                <button class="nav-tool-btn" id="btn-siren" title="Mute / Unmute Alert Siren" aria-label="Mute or unmute alert siren">🔊 <span>Siren</span></button>
+                <button class="nav-tool-btn" id="btn-export" title="Export Warning Bulletin (PDF)" aria-label="Export warning bulletin as PDF">📄 <span>Export</span></button>
+                <button class="nav-tool-btn" id="btn-wall" title="Wall Mode (Fullscreen Map)" aria-label="Toggle wall mode fullscreen map">⛶ <span>Wall</span></button>
+                <button class="nav-tool-btn" id="btn-lowband" title="Low-Bandwidth / Field Mode" aria-label="Toggle low-bandwidth field mode">📶 <span>Lo-Fi</span></button>
+                <button class="nav-tool-btn" id="btn-shortcuts" title="Keyboard Shortcuts (?)" aria-label="Show keyboard shortcuts">⌨ <span>Keys</span></button>
+            </div>
+            <span class="nav-divider">|</span>
+            <button class="theme-toggle-btn" id="theme-toggle" title="Switch Light / Dark Mode" aria-label="Switch between light and dark mode">
+                <span id="theme-icon">☀️</span>
+                <span id="theme-text">Light Mode</span>
+            </button>
+            <span class="nav-divider">|</span>
+            <span class="nav-label">LAST SYNC</span>
+            <span class="mono-val" id="last-update">--:--:--</span>
+            <span class="nav-divider">|</span>
+            <span class="nav-label">IST</span>
+            <span class="mono-val accent" id="ist-time">--:--:--</span>
+        </div>
+    </header>
+
+    <!-- ═══════════════ TAB BAR ═══════════════ -->
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="dashboard">
+            <span class="tab-icon">◉</span> Dashboard
+        </button>
+        <button class="tab-btn" data-tab="alerts">
+            <span class="tab-icon">⚠</span> Alerts
+            <span class="alert-count-badge" id="tab-alert-count" style="display:none">0</span>
+        </button>
+        <button class="tab-btn" data-tab="stations">
+            <span class="tab-icon">📡</span> Stations
+        </button>
+        <button class="tab-btn" data-tab="model-info">
+            <span class="tab-icon">🧠</span> Model Info
+        </button>
+        <button class="tab-btn" data-tab="historical">
+            <span class="tab-icon">📊</span> Historical
+        </button>
+    </nav>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="content-area">
+
+        <!-- ──── DASHBOARD TAB ──── -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="dashboard-layout">
+                <div class="map-panel">
+                    <div class="map-toolbar">
+                        <span class="toolbar-label">MAP VIEW</span>
+                        <div class="toolbar-btns">
+                            <button class="map-btn" id="toggle-heatmap" aria-pressed="false">Rainfall Layer</button>
+                            <button class="map-btn" id="btn-download-kml" aria-label="Download active alerts as KML for Google Earth">⬇ KML</button>
+                            <button class="map-btn" data-region="north" aria-label="Zoom to North region">North</button>
+                            <button class="map-btn" data-region="south" aria-label="Zoom to South region">South</button>
+                            <button class="map-btn" data-region="east" aria-label="Zoom to East region">East</button>
+                            <button class="map-btn" data-region="west" aria-label="Zoom to West region">West</button>
+                            <button class="map-btn" data-region="central" aria-label="Zoom to Central region">Central</button>
+                            <button class="map-btn" data-region="northeast" aria-label="Zoom to Northeast region">NE</button>
+                        </div>
+                    </div>
+                    <div class="map-canvas-wrap">
+                        <div id="map"></div>
+                        <div class="map-title-badge">Risk Map · Probability / susceptibility</div>
+                        <div class="map-risk-legend">
+                            <div class="legend-title">Risk probability</div>
+                            <div class="legend-bar"></div>
+                            <div class="legend-ticks"><span>0%</span><span>20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">STATIONS</div>
+                            <div class="stat-value" id="stat-stations">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">ACTIVE ALERTS</div>
+                            <div class="stat-value" id="stat-alerts">--</div>
+                            <div class="stat-breakdown" id="stat-alerts-breakdown"></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">AVG RAINFALL</div>
+                            <div class="stat-value" id="stat-rain">-- mm/h</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">HIGHEST RISK</div>
+                            <div class="stat-value" id="stat-risk">--</div>
+                        </div>
+                    </div>
+
+                    <div class="feed-header">
+                        <h3>LIVE ALERT FEED</h3>
+                        <span class="feed-live-dot"></span>
+                    </div>
+                    <div class="alerts-feed" id="alerts-feed">
+                        <div class="skeleton-line" style="width:90%"></div>
+                        <div class="skeleton-line" style="width:75%"></div>
+                        <div class="skeleton-line" style="width:85%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──── ALERTS TAB ──── -->
+        <div id="tab-alerts" class="tab-content">
+            <div class="filter-bar">
+                <select id="filter-severity">
+                    <option value="all">All Severities</option>
+                    <option value="severe">🔴 Severe</option>
+                    <option value="warning">🟠 Warning</option>
+                    <option value="watch">🟡 Watch</option>
+                </select>
+                <select id="filter-state">
+                    <option value="all">All States</option>
+                </select>
+                <select id="filter-basin">
+                    <option value="all">All Basins</option>
+                </select>
+                <button class="action-btn" id="btn-refresh-alerts">↻ Refresh</button>
+            </div>
+            <div class="alerts-grid" id="alerts-grid">
+                <div class="skeleton-line" style="width:95%"></div>
+                <div class="skeleton-line" style="width:80%"></div>
+                <div class="skeleton-line" style="width:88%"></div>
+            </div>
+        </div>
+
+        <!-- ──── STATIONS TAB ──── -->
+        <div id="tab-stations" class="tab-content">
+            <div class="station-search-bar">
+                <input type="text" id="station-search" placeholder="Search stations…" class="search-input">
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="stations-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-sort="name">Station ↕</th>
+                            <th scope="col" data-sort="state">State ↕</th>
+                            <th scope="col" data-sort="temp">Temp °C ↕</th>
+                            <th scope="col" data-sort="humidity">Humidity % ↕</th>
+                            <th scope="col" data-sort="rain">Rain mm/hr ↕</th>
+                            <th scope="col" data-sort="wind">Wind km/h ↕</th>
+                            <th scope="col" data-sort="pressure">Pressure hPa ↕</th>
+                            <th scope="col" data-sort="cape">CAPE J/kg ↕</th>
+                            <th scope="col" data-sort="level">Alert ↕</th>
+                            <th scope="col" data-sort="floodRisk">Flood Risk ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td colspan="10"><div class="skeleton-line" style="width:100%"></div></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ──── MODEL INFO TAB ──── -->
+        <div id="tab-model-info" class="tab-content">
+            <div class="model-info-grid" id="model-info-content">
+                <div class="info-card span-2">
+                    <h3>VarshaNet Architecture — Stage 1</h3>
+                    <div class="architecture-diagram" id="arch-diagram"></div>
+                </div>
+                <div class="info-card">
+                    <h3>Data Sources</h3>
+                    <div id="data-sources-list"></div>
+                </div>
+                <div class="info-card">
+                    <h3>Training Configuration</h3>
+                    <div id="training-config"></div>
+                </div>
+                <div class="info-card span-2">
+                    <h3>Performance Metrics by Threshold</h3>
+                    <table class="metrics-table" id="perf-metrics-table">
+                        <thead>
+                            <tr><th>Threshold</th><th>BSS</th><th>PR-AUC</th><th>CSI</th><th>POD</th><th>FAR</th><th>ETS</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="info-card" style="height:280px;display:flex;flex-direction:column;overflow:hidden;">
+                    <h3>Reliability Diagram (30mm/h threshold)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-reliability"></canvas>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h3>Stage 2 — FloodRisk Module</h3>
+                    <div id="flood-module-info"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──── HISTORICAL TAB ──── -->
+        <div id="tab-historical" class="tab-content">
+            <div class="filter-bar">
+                <input type="date" id="historical-date" value="2022-09-15">
+                <button class="action-btn" id="btn-load-historical">Load Historical Data</button>
+            </div>
+            <div id="historical-results" class="info-card">
+                <p class="text-muted">Select a date and click "Load" to view historical prediction vs. observation data.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- ──── STATION DETAIL MODAL (GLOBAL OVERLAY) ──── -->
+    <div id="station-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-station-name">
+        <div class="modal-content">
+            <button class="close-btn" aria-label="Close station detail">&times;</button>
+            <h2 id="modal-station-name">Station Name</h2>
+            <div class="modal-stats" id="modal-stats"></div>
+            <div class="station-dashboard">
+                <div class="chart-box">
+                    <h3>24-Hour Rainfall & Temperature</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-timeseries"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>6-Hour Forecast</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-forecast"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>Prediction Attribution (XAI)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-xai"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>XAI Explanation</h3>
+                    <div id="xai-explanation" class="xai-text xai-text-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──── TOAST CONTAINER ──── -->
+    <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- ──── TIMELINE SCRUBBER (fixed footer) ──── -->
+    <div class="timeline-scrubber hidden" id="timeline-scrubber">
+        <button class="timeline-play-btn" id="timeline-play" title="Play / Pause" aria-label="Play or pause the forecast timeline">▶</button>
+        <span class="timeline-label" id="timeline-current">NOW</span>
+        <input type="range" class="timeline-range" id="timeline-range" min="-2" max="6" step="1" value="0">
+        <div class="timeline-ticks">
+            <span>-2h</span><span>-1h</span><span>NOW</span><span>+1h</span><span>+2h</span><span>+3h</span><span>+4h</span><span>+5h</span><span>+6h</span>
+        </div>
+    </div>
+
+    <!-- ──── MAP INSPECTOR SIDEBAR ──── -->
+    <aside class="map-inspector" id="map-inspector" role="complementary" aria-label="Location inspector">
+        <button class="map-inspector-close" id="inspector-close" aria-label="Close location inspector">&times;</button>
+        <h3 id="inspector-title">Location Inspector</h3>
+        <div id="inspector-body">
+            <p style="color:var(--text-muted)">Click on the map to inspect a location…</p>
+        </div>
+    </aside>
+
+    <!-- ──── WALL MODE EXIT BUTTON ──── -->
+    <button class="wall-exit-btn" id="wall-exit" aria-label="Exit wall mode">✕ Exit Wall Mode</button>
+
+    <!-- ──── KEYBOARD SHORTCUTS MODAL ──── -->
+    <div class="shortcuts-modal" id="shortcuts-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+        <div class="shortcuts-body">
+            <h3>⌨ Keyboard Shortcuts</h3>
+            <div class="shortcut-row"><span>Play / Pause Timeline</span><span class="shortcut-key">Space</span></div>
+            <div class="shortcut-row"><span>Dashboard Tab</span><span class="shortcut-key">1</span></div>
+            <div class="shortcut-row"><span>Alerts Tab</span><span class="shortcut-key">2</span></div>
+            <div class="shortcut-row"><span>Stations Tab</span><span class="shortcut-key">3</span></div>
+            <div class="shortcut-row"><span>Model Info Tab</span><span class="shortcut-key">4</span></div>
+            <div class="shortcut-row"><span>Historical Tab</span><span class="shortcut-key">5</span></div>
+            <div class="shortcut-row"><span>Focus Station Search</span><span class="shortcut-key">/</span></div>
+            <div class="shortcut-row"><span>Toggle Wall Mode</span><span class="shortcut-key">F</span></div>
+            <div class="shortcut-row"><span>Toggle Wind Vectors</span><span class="shortcut-key">W</span></div>
+            <div class="shortcut-row"><span>Toggle Siren Mute</span><span class="shortcut-key">M</span></div>
+            <div class="shortcut-row"><span>Close / Dismiss</span><span class="shortcut-key">Esc</span></div>
+            <div class="shortcut-row"><span>Show This Help</span><span class="shortcut-key">?</span></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ SCRIPTS ═══════════════ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+/* ═══════════════════════════════════════════════════════════════
+   VARSHA — Simulated Backend / Data Layer
+   Since no live API exists in this environment, this module acts
+   as an in-memory "server": it generates a realistic station
+   network across India, evolves it over time (small random walk),
+   derives alerts from risk thresholds, and answers every endpoint
+   app.js/websocket.js used to fetch() over HTTP.
+   Exposed as window.VarshaMockAPI.
+   ═══════════════════════════════════════════════════════════════ */
+
+(function () {
+    'use strict';
+
+    // ── Station network (name, state, district, region, basin, lat, lon, baseline bias) ──
+    const STATION_TEMPLATES = [
+        { name: 'Mumbai Colaba',      state: 'Maharashtra',    district: 'Mumbai',        region: 'west',      basin: 'Mithi',          lat: 18.90, lon: 72.82, rainBias: 1.3 },
+        { name: 'Pune Shivajinagar',  state: 'Maharashtra',    district: 'Pune',          region: 'west',      basin: 'Mutha',          lat: 18.53, lon: 73.85, rainBias: 0.8 },
+        { name: 'Nagpur',             state: 'Maharashtra',    district: 'Nagpur',        region: 'central',   basin: 'Nag',            lat: 21.15, lon: 79.09, rainBias: 0.9 },
+        { name: 'Surat',              state: 'Gujarat',        district: 'Surat',         region: 'west',      basin: 'Tapi',           lat: 21.17, lon: 72.83, rainBias: 1.1 },
+        { name: 'Ahmedabad',          state: 'Gujarat',        district: 'Ahmedabad',     region: 'west',      basin: 'Sabarmati',      lat: 23.03, lon: 72.58, rainBias: 0.7 },
+        { name: 'Vadodara',           state: 'Gujarat',        district: 'Vadodara',      region: 'west',      basin: 'Vishwamitri',    lat: 22.31, lon: 73.19, rainBias: 0.9 },
+        { name: 'Kochi Fort',         state: 'Kerala',         district: 'Ernakulam',     region: 'south',     basin: 'Periyar',        lat: 9.93,  lon: 76.26, rainBias: 1.6 },
+        { name: 'Thiruvananthapuram', state: 'Kerala',         district: 'Thiruvananthapuram', region: 'south', basin: 'Karamana',      lat: 8.52,  lon: 76.94, rainBias: 1.4 },
+        { name: 'Idukki',             state: 'Kerala',         district: 'Idukki',        region: 'south',     basin: 'Periyar',        lat: 9.85,  lon: 76.97, rainBias: 1.8 },
+        { name: 'Chennai Nungambakkam',state: 'Tamil Nadu',    district: 'Chennai',       region: 'south',     basin: 'Cooum',          lat: 13.06, lon: 80.24, rainBias: 1.0 },
+        { name: 'Coimbatore',         state: 'Tamil Nadu',     district: 'Coimbatore',    region: 'south',     basin: 'Noyyal',         lat: 11.02, lon: 76.97, rainBias: 0.7 },
+        { name: 'Madurai',            state: 'Tamil Nadu',     district: 'Madurai',       region: 'south',     basin: 'Vaigai',         lat: 9.93,  lon: 78.12, rainBias: 0.6 },
+        { name: 'Bengaluru City',     state: 'Karnataka',      district: 'Bengaluru',     region: 'south',     basin: 'Vrishabhavathi', lat: 12.97, lon: 77.59, rainBias: 0.9 },
+        { name: 'Mangaluru',          state: 'Karnataka',      district: 'Dakshina Kannada', region: 'south',  basin: 'Netravathi',     lat: 12.91, lon: 74.86, rainBias: 1.7 },
+        { name: 'Hyderabad',          state: 'Telangana',      district: 'Hyderabad',     region: 'south',     basin: 'Musi',           lat: 17.39, lon: 78.49, rainBias: 0.8 },
+        { name: 'Vijayawada',         state: 'Andhra Pradesh', district: 'Krishna',       region: 'south',     basin: 'Krishna',        lat: 16.51, lon: 80.63, rainBias: 1.1 },
+        { name: 'Visakhapatnam',      state: 'Andhra Pradesh', district: 'Visakhapatnam', region: 'east',      basin: 'Meghadrigedda',  lat: 17.69, lon: 83.22, rainBias: 1.2 },
+        { name: 'Kolkata Alipore',    state: 'West Bengal',    district: 'Kolkata',       region: 'east',      basin: 'Hooghly',        lat: 22.53, lon: 88.33, rainBias: 1.3 },
+        { name: 'Siliguri',           state: 'West Bengal',    district: 'Darjeeling',    region: 'northeast', basin: 'Mahananda',      lat: 26.73, lon: 88.43, rainBias: 1.9 },
+        { name: 'Bhubaneswar',        state: 'Odisha',         district: 'Khordha',       region: 'east',      basin: 'Kuakhai',        lat: 20.30, lon: 85.82, rainBias: 1.2 },
+        { name: 'Cuttack',            state: 'Odisha',         district: 'Cuttack',       region: 'east',      basin: 'Mahanadi',       lat: 20.47, lon: 85.88, rainBias: 1.3 },
+        { name: 'Patna',              state: 'Bihar',          district: 'Patna',         region: 'east',      basin: 'Ganga',          lat: 25.61, lon: 85.14, rainBias: 1.1 },
+        { name: 'Guwahati',           state: 'Assam',          district: 'Kamrup',        region: 'northeast', basin: 'Brahmaputra',    lat: 26.14, lon: 91.74, rainBias: 1.8 },
+        { name: 'Dibrugarh',          state: 'Assam',          district: 'Dibrugarh',     region: 'northeast', basin: 'Brahmaputra',    lat: 27.48, lon: 94.91, rainBias: 1.7 },
+        { name: 'Imphal',             state: 'Manipur',        district: 'Imphal West',   region: 'northeast', basin: 'Imphal',         lat: 24.82, lon: 93.94, rainBias: 1.4 },
+        { name: 'Agartala',           state: 'Tripura',        district: 'West Tripura',  region: 'northeast', basin: 'Haora',          lat: 23.84, lon: 91.28, rainBias: 1.5 },
+        { name: 'Shillong',           state: 'Meghalaya',      district: 'East Khasi Hills', region: 'northeast', basin: 'Umkhrah',      lat: 25.58, lon: 91.89, rainBias: 2.0 },
+        { name: 'Lucknow',            state: 'Uttar Pradesh',  district: 'Lucknow',       region: 'north',     basin: 'Gomti',          lat: 26.85, lon: 80.95, rainBias: 0.8 },
+        { name: 'Varanasi',           state: 'Uttar Pradesh',  district: 'Varanasi',      region: 'north',     basin: 'Ganga',          lat: 25.32, lon: 82.97, rainBias: 0.9 },
+        { name: 'Kanpur',             state: 'Uttar Pradesh',  district: 'Kanpur Nagar',  region: 'north',     basin: 'Ganga',          lat: 26.45, lon: 80.33, rainBias: 0.7 },
+        { name: 'Delhi Safdarjung',   state: 'Delhi',          district: 'New Delhi',     region: 'north',     basin: 'Yamuna',         lat: 28.58, lon: 77.21, rainBias: 0.6 },
+        { name: 'Chandigarh',         state: 'Chandigarh',     district: 'Chandigarh',    region: 'north',     basin: 'Sukhna Choe',    lat: 30.73, lon: 76.78, rainBias: 0.8 },
+        { name: 'Dehradun',           state: 'Uttarakhand',    district: 'Dehradun',      region: 'north',     basin: 'Song',           lat: 30.32, lon: 78.03, rainBias: 1.5 },
+        { name: 'Shimla',             state: 'Himachal Pradesh', district: 'Shimla',      region: 'north',     basin: 'Satluj',         lat: 31.10, lon: 77.17, rainBias: 1.3 },
+        { name: 'Srinagar',           state: 'Jammu & Kashmir', district: 'Srinagar',     region: 'north',     basin: 'Jhelum',         lat: 34.08, lon: 74.80, rainBias: 0.5 },
+        { name: 'Jaipur',             state: 'Rajasthan',      district: 'Jaipur',        region: 'north',     basin: 'Dravyavati',     lat: 26.91, lon: 75.79, rainBias: 0.5 },
+        { name: 'Jodhpur',            state: 'Rajasthan',      district: 'Jodhpur',       region: 'north',     basin: 'Jojri',          lat: 26.29, lon: 73.02, rainBias: 0.3 },
+        { name: 'Bhopal',             state: 'Madhya Pradesh', district: 'Bhopal',        region: 'central',   basin: 'Betwa',          lat: 23.26, lon: 77.41, rainBias: 0.9 },
+        { name: 'Indore',             state: 'Madhya Pradesh', district: 'Indore',        region: 'central',   basin: 'Khan',           lat: 22.72, lon: 75.86, rainBias: 0.8 },
+        { name: 'Raipur',             state: 'Chhattisgarh',   district: 'Raipur',        region: 'central',   basin: 'Kharun',         lat: 21.25, lon: 81.63, rainBias: 1.0 },
+        { name: 'Ranchi',             state: 'Jharkhand',      district: 'Ranchi',        region: 'central',   basin: 'Subarnarekha',   lat: 23.34, lon: 85.31, rainBias: 1.1 },
+        { name: 'Amritsar',           state: 'Punjab',         district: 'Amritsar',      region: 'north',     basin: 'Ravi',           lat: 31.63, lon: 74.87, rainBias: 0.6 },
+        { name: 'Panaji',             state: 'Goa',            district: 'North Goa',     region: 'west',      basin: 'Mandovi',        lat: 15.49, lon: 73.83, rainBias: 1.6 },
+        { name: 'Port Blair',         state: 'Andaman & Nicobar', district: 'South Andaman', region: 'east',    basin: 'Coastal',        lat: 11.62, lon: 92.73, rainBias: 1.7 },
+    ];
+
+    let _idCounter = 1;
+    function nextId() {
+        return 'STN' + String(_idCounter++).padStart(3, '0');
+    }
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function rand(min, max) { return min + Math.random() * (max - min); }
+    function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    const WIND_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+    function seedStation(tpl) {
+        const bias = tpl.rainBias;
+        const rain = clamp(rand(0, 6) * bias, 0, 40);
+        const cape = clamp(rand(200, 1400) * bias, 0, 4500);
+        const humidity = clamp(rand(45, 75) + bias * 8, 20, 99);
+        const temp = clamp(rand(22, 34) - bias * 1.5, 8, 44);
+        const extremeRain = clamp((rain / 40) * 0.5 + (cape / 4500) * 0.5 + rand(-0.05, 0.05), 0.01, 0.97);
+        const floodSusc = clamp(extremeRain * 0.8 + rand(-0.1, 0.2), 0.01, 0.97);
+
+        return {
+            id: nextId(),
+            name: tpl.name,
+            district: tpl.district,
+            state: tpl.state,
+            region: tpl.region,
+            basin: tpl.basin,
+            lat: tpl.lat,
+            lon: tpl.lon,
+            _rainBias: bias,
+            _boostUntil: 0,
+            _boostFactor: 1,
+            current_conditions: {
+                temperature: Math.round(temp * 10) / 10,
+                humidity: Math.round(humidity),
+                rainfall_rate: Math.round(rain * 10) / 10,
+                wind_speed: Math.round(rand(4, 28)),
+                wind_dir: choice(WIND_DIRS),
+                pressure: Math.round(rand(998, 1013)),
+                cloud_cover: Math.round(rand(15, 95)),
+                CAPE: Math.round(cape),
+                CIN: Math.round(rand(-120, -5)),
+            },
+            probabilities: {
+                extreme_rain: extremeRain,
+                flood_susceptibility: floodSusc,
+                rain_1h: clamp(extremeRain * rand(0.7, 1.1), 0, 0.99),
+                rain_3h: clamp(extremeRain * rand(0.9, 1.3), 0, 0.99),
+                rain_6h: clamp(extremeRain * rand(1.0, 1.5), 0, 0.99),
+            },
+        };
+    }
+
+    const STATE = {
+        stations: STATION_TEMPLATES.map(seedStation),
+        lastTick: 0,
+    };
+
+    // Small random-walk evolution so numbers feel "live" between refreshes
+    function tickStations() {
+        const now = Date.now();
+        if (now - STATE.lastTick < 4000) return; // throttle: at most once / 4s
+        STATE.lastTick = now;
+
+        STATE.stations.forEach(st => {
+            const boosted = now < st._boostUntil;
+            const decay = boosted ? 1 : Math.max(1, st._boostFactor * 0.85);
+            st._boostFactor = boosted ? st._boostFactor : decay;
+            if (!boosted && st._boostFactor <= 1.02) st._boostFactor = 1;
+
+            const cc = st.current_conditions;
+            const bias = st._rainBias * st._boostFactor;
+
+            cc.rainfall_rate = clamp(cc.rainfall_rate + rand(-1.2, 1.4) * bias, 0, 90);
+            cc.temperature = clamp(cc.temperature + rand(-0.4, 0.4), 5, 46);
+            cc.humidity = clamp(Math.round(cc.humidity + rand(-2, 2)), 15, 100);
+            cc.wind_speed = clamp(Math.round(cc.wind_speed + rand(-2, 2)), 0, 90);
+            cc.pressure = clamp(Math.round(cc.pressure + rand(-0.6, 0.6)), 985, 1020);
+            cc.cloud_cover = clamp(Math.round(cc.cloud_cover + rand(-3, 3)), 0, 100);
+            cc.CAPE = clamp(Math.round(cc.CAPE + rand(-60, 90) * bias), 0, 5500);
+            if (Math.random() < 0.08) cc.wind_dir = choice(WIND_DIRS);
+
+            const p = st.probabilities;
+            const rainSignal = clamp(cc.rainfall_rate / 45, 0, 1);
+            const capeSignal = clamp(cc.CAPE / 4500, 0, 1);
+            const target = clamp(rainSignal * 0.55 + capeSignal * 0.45, 0.01, 0.98);
+            p.extreme_rain = clamp(p.extreme_rain + (target - p.extreme_rain) * 0.35 + rand(-0.02, 0.02), 0.01, 0.98);
+            p.flood_susceptibility = clamp(p.flood_susceptibility + (p.extreme_rain * 0.85 - p.flood_susceptibility) * 0.3 + rand(-0.02, 0.03), 0.01, 0.98);
+            p.rain_1h = clamp(p.extreme_rain * rand(0.75, 1.05), 0, 0.99);
+            p.rain_3h = clamp(p.extreme_rain * rand(0.95, 1.25), 0, 0.99);
+            p.rain_6h = clamp(p.extreme_rain * rand(1.05, 1.45), 0, 0.99);
+        });
+    }
+
+    function stripInternal(st) {
+        const { _rainBias, _boostUntil, _boostFactor, ...clean } = st;
+        return JSON.parse(JSON.stringify(clean));
+    }
+
+    function getStations() {
+        tickStations();
+        return STATE.stations.map(stripInternal);
+    }
+
+    function levelOf(ep, fr) {
+        if (ep > 0.5 && fr > 0.5) return 'severe';
+        if (ep > 0.4 || fr > 0.5) return 'warning';
+        if (ep > 0.3 || fr > 0.3) return 'watch';
+        return 'safe';
+    }
+
+    const TRIGGER_POOL = [
+        'CAPE exceeds convective threshold (>1500 J/kg)',
+        'Rapid pressure drop detected (>3 hPa/3h)',
+        'Satellite cloud-top temp < -70°C (deep convection)',
+        'Soil moisture saturation index > 85%',
+        'Upstream basin discharge trending upward',
+        'Doppler radar reflectivity > 50 dBZ',
+        'Sustained onshore wind flow (>25 km/h)',
+        'Antecedent Precipitation Index (7-day) elevated',
+        'Moisture flux convergence over basin',
+        'Terrain-forced orographic lift detected',
+    ];
+    const ACTIONS = {
+        severe: 'Issue immediate public warning. Coordinate evacuation of flood-prone low-lying areas with district disaster management authority.',
+        warning: 'Alert local authorities and emergency services. Advise residents in vulnerable zones to prepare for possible evacuation.',
+        watch: 'Monitor conditions closely. Advise general caution to residents near rivers, drains, and low-lying zones.',
+    };
+
+    let _alertCounter = 1;
+    function deriveAlerts() {
+        return STATE.stations
+            .filter(st => levelOf(st.probabilities.extreme_rain, st.probabilities.flood_susceptibility) !== 'safe')
+            .map(st => {
+                const lvl = levelOf(st.probabilities.extreme_rain, st.probabilities.flood_susceptibility);
+                const triggers = [];
+                const n = lvl === 'severe' ? 3 : lvl === 'warning' ? 2 : 1;
+                const pool = [...TRIGGER_POOL];
+                for (let i = 0; i < n; i++) {
+                    const idx = Math.floor(Math.random() * pool.length);
+                    triggers.push(pool.splice(idx, 1)[0]);
+                }
+                const now = new Date();
+                const validTo = new Date(now.getTime() + 6 * 3600 * 1000);
+                return {
+                    alert_id: `${st.id}-A${_alertCounter++}`,
+                    station_name: st.name,
+                    state: st.state,
+                    location: { district: st.district, lat: st.lat, lon: st.lon },
+                    level: lvl,
+                    valid_from: now.toISOString(),
+                    valid_to: validTo.toISOString(),
+                    predicted_rainfall_3h: Math.round(st.current_conditions.rainfall_rate * 2.6 * 10) / 10,
+                    extreme_rain_probability: st.probabilities.extreme_rain,
+                    flood_susceptibility: st.probabilities.flood_susceptibility,
+                    confidence: st.probabilities.extreme_rain > 0.7 ? 'high' : st.probabilities.extreme_rain > 0.45 ? 'medium' : 'low',
+                    triggers,
+                    recommended_action: ACTIONS[lvl],
+                };
+            })
+            .sort((a, b) => {
+                const order = { severe: 0, warning: 1, watch: 2 };
+                return order[a.level] - order[b.level];
+            });
+    }
+
+    function getAlerts() {
+        tickStations();
+        return deriveAlerts();
+    }
+
+    function findStation(id) {
+        return STATE.stations.find(s => s.id === id) || null;
+    }
+
+    function getStationDetail(id) {
+        const st = findStation(id) || STATE.stations[0];
+        const history = [];
+        const now = new Date();
+        let rain = Math.max(0, st.current_conditions.rainfall_rate - rand(2, 6));
+        let temp = st.current_conditions.temperature + rand(-2, 2);
+        let hum = st.current_conditions.humidity;
+        for (let h = 23; h >= 0; h--) {
+            const t = new Date(now.getTime() - h * 3600 * 1000);
+            rain = clamp(rain + rand(-1.5, 1.8) * st._rainBias, 0, 80);
+            temp = clamp(temp + rand(-0.8, 0.8) - Math.sin((23 - h) / 24 * Math.PI) * 0.2, 5, 46);
+            hum = clamp(hum + rand(-3, 3), 20, 100);
+            history.push({
+                timestamp: t.toISOString(),
+                rainfall: Math.round(rain * 10) / 10,
+                temperature: Math.round(temp * 10) / 10,
+                humidity: Math.round(hum),
+            });
+        }
+        return { station_id: st.id, history_24h: history };
+    }
+
+    function getForecast(id) {
+        const st = findStation(id) || STATE.stations[0];
+        const forecast = [];
+        let rain = st.current_conditions.rainfall_rate;
+        let prob = st.probabilities.rain_1h;
+        for (let h = 1; h <= 6; h++) {
+            rain = clamp(rain + rand(-2, 2.5) * st._rainBias, 0, 90);
+            prob = clamp(prob + rand(-0.08, 0.08), 0.02, 0.98);
+            const spread = rain * rand(0.15, 0.35);
+            forecast.push({
+                hour: `+${h}h`,
+                predicted_rainfall: Math.round(rain * 10) / 10,
+                confidence_lower: Math.round(Math.max(0, rain - spread) * 10) / 10,
+                confidence_upper: Math.round((rain + spread) * 10) / 10,
+                rainfall_prob: Math.round(prob * 100) / 100,
+            });
+        }
+        return { station_id: st.id, forecast };
+    }
+
+    function getXai(id) {
+        const st = findStation(id) || STATE.stations[0];
+        const channels = {
+            'Satellite IR (cloud top temp)': rand(0.1, 0.3),
+            'Satellite WV (moisture)': rand(0.05, 0.22),
+            'CAPE / instability': rand(0.1, 0.28),
+            'Terrain / DEM': rand(0.03, 0.12),
+            'ERA5 wind convergence': rand(0.05, 0.18),
+            'Antecedent rainfall': rand(0.05, 0.15),
+        };
+        const total = Object.values(channels).reduce((a, b) => a + b, 0);
+        Object.keys(channels).forEach(k => { channels[k] = Math.round((channels[k] / total) * 1000) / 1000; });
+
+        const top = Object.entries(channels).sort((a, b) => b[1] - a[1]);
+        const conf = clamp(st.probabilities.extreme_rain * rand(0.85, 1.05), 0.05, 0.98);
+
+        const explanation = `The model's prediction for ${st.name} is driven primarily by ${top[0][0].toLowerCase()} `
+            + `(${(top[0][1] * 100).toFixed(0)}% contribution), reinforced by ${top[1][0].toLowerCase()}. `
+            + `Current CAPE of ${st.current_conditions.CAPE} J/kg and a rainfall rate of ${st.current_conditions.rainfall_rate.toFixed(1)} mm/h `
+            + `place this station in the ${levelOf(st.probabilities.extreme_rain, st.probabilities.flood_susceptibility)} risk band.`;
+
+        return {
+            station_id: st.id,
+            confidence_score: conf,
+            explanation_text: explanation,
+            channel_attributions: channels,
+            top_triggers: top.slice(0, 3).map(([name]) => `${name} strongly influencing forecast`),
+        };
+    }
+
+    function getModelInfo() {
+        // Fixed / static — describes the (fictional) VarshaNet model
+        return {
+            data_sources: {
+                satellite: 'INSAT-3D/3DR (6-band, 15-min cadence, 4km resample)',
+                reanalysis: 'ERA5 hourly reanalysis (12 pressure-level + surface fields)',
+                precipitation_target: 'IMD gridded rainfall (0.25° merged gauge + satellite)',
+                elevation: 'Copernicus GLO-30 DEM (30m, resampled to 4km)',
+            },
+            training: {
+                optimizer: 'AdamW (lr=2e-4, weight decay=1e-5)',
+                scheduler: 'Cosine annealing w/ warm restarts',
+                epochs: 120,
+                batch_size: 16,
+                loss: 'Weighted Focal + Regression (CSI-weighted)',
+                train_years: '2010 – 2019',
+                val_years: '2020 – 2021',
+                test_years: '2022 – 2023',
+                mixed_precision: true,
+            },
+            performance: {
+                thresholds: [
+                    { threshold_mm_hr: 1,  BSS: 0.41, PR_AUC: 0.88, CSI: 0.61, POD: 0.79, FAR: 0.29, ETS: 0.44 },
+                    { threshold_mm_hr: 10, BSS: 0.36, PR_AUC: 0.79, CSI: 0.52, POD: 0.70, FAR: 0.34, ETS: 0.37 },
+                    { threshold_mm_hr: 30, BSS: 0.29, PR_AUC: 0.68, CSI: 0.41, POD: 0.61, FAR: 0.44, ETS: 0.27 },
+                    { threshold_mm_hr: 50, BSS: 0.22, PR_AUC: 0.57, CSI: 0.31, POD: 0.52, FAR: 0.52, ETS: 0.19 },
+                ],
+                flood_module_auc: 0.86,
+            },
+            architecture: {
+                stage2: 'Gradient-boosted trees on Stage-1 forecast + static terrain features',
+            },
+            calibration: {
+                predicted: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+                observed:  [0.08, 0.19, 0.28, 0.37, 0.49, 0.58, 0.71, 0.77, 0.88],
+            },
+        };
+    }
+
+    function getHistorical(dateStr) {
+        const records = STATE.stations.slice(0, 18).map(st => {
+            const predicted = clamp(st.current_conditions.rainfall_rate * rand(2, 3.2) + rand(-5, 5), 0, 150);
+            const observed = clamp(predicted + rand(-12, 12), 0, 160);
+            const error = Math.round((predicted - observed) * 10) / 10;
+            const alertIssued = predicted > 25 || Math.random() < 0.15;
+            const alertVerified = alertIssued ? (observed > 20 ? Math.random() < 0.82 : Math.random() < 0.4) : false;
+            return {
+                station_name: st.name,
+                state: st.state,
+                predicted_rainfall_mm: Math.round(predicted * 10) / 10,
+                observed_rainfall_mm: Math.round(observed * 10) / 10,
+                error_mm: error,
+                alert_issued: alertIssued,
+                alert_verified: alertVerified,
+            };
+        });
+        return { date: dateStr, records };
+    }
+
+    // ── Simulated real-time push: spikes a random station's risk ──
+    function pushSimulatedAlert() {
+        tickStations();
+        const st = choice(STATE.stations);
+        const boostLevel = choice(['warning', 'severe', 'severe', 'watch']);
+        const targetEp = boostLevel === 'severe' ? rand(0.6, 0.9) : boostLevel === 'warning' ? rand(0.45, 0.6) : rand(0.32, 0.42);
+
+        st.probabilities.extreme_rain = clamp(Math.max(st.probabilities.extreme_rain, targetEp), 0, 0.98);
+        st.probabilities.flood_susceptibility = clamp(Math.max(st.probabilities.flood_susceptibility, targetEp * 0.9), 0, 0.98);
+        st.current_conditions.rainfall_rate = clamp(Math.max(st.current_conditions.rainfall_rate, targetEp * 45), 0, 90);
+        st.current_conditions.CAPE = clamp(Math.max(st.current_conditions.CAPE, targetEp * 3200), 0, 5500);
+        st._boostFactor = 2.2;
+        st._boostUntil = Date.now() + rand(15, 40) * 60 * 1000;
+
+        const lvl = levelOf(st.probabilities.extreme_rain, st.probabilities.flood_susceptibility);
+        const messages = {
+            severe: `Severe rainfall event developing over ${st.district}. Immediate action recommended.`,
+            warning: `Rainfall intensifying near ${st.district} — monitor for escalation.`,
+            watch: `Early-stage instability detected near ${st.district}.`,
+        };
+
+        return {
+            level: lvl,
+            station_name: st.name,
+            location: { district: st.district, lat: st.lat, lon: st.lon },
+            message: messages[lvl] || messages.watch,
+        };
+    }
+
+    window.VarshaMockAPI = {
+        getStations,
+        getAlerts,
+        getStationDetail,
+        getForecast,
+        getXai,
+        getModelInfo,
+        getHistorical,
+        pushSimulatedAlert,
+    };
+})();
+
+</script>
+    <script>
+/* ═══════════════════════════════════════════════════════════════
+   VARSHA — Chart.js helpers (dark theme, amber/green/red palette)
+   ═══════════════════════════════════════════════════════════════ */
+
+// Global defaults
+if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = '#9a9a9a';
+    Chart.defaults.font.family = "'JetBrains Mono', monospace";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.plugins.legend.labels.boxWidth = 12;
+    Chart.defaults.resizeDelay = 100;
+}
+
+const CHART_COLORS = {
+    amber:    '#d4940a',
+    green:    '#1a8a50',
+    red:      '#c62828',
+    orange:   '#d4690a',
+    grey:     '#3a3a48',
+    gridLine: '#2a2a35',
+    bgCard:   '#1c1c24',
+};
+
+function updateChartTheme(theme) {
+    const isLight = theme === 'light';
+    CHART_COLORS.gridLine = isLight ? '#cbd5e1' : '#2a2a35';
+    CHART_COLORS.bgCard   = isLight ? '#ffffff' : '#1c1c24';
+    CHART_COLORS.grey     = isLight ? '#94a3b8' : '#3a3a48';
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = isLight ? '#475569' : '#9a9a9a';
+    }
+}
+window.updateChartTheme = updateChartTheme;
+
+// Track chart instances by canvas id for proper cleanup
+const _charts = {};
+
+function _destroyChart(canvasId) {
+    if (typeof Chart === 'undefined') return;
+    if (_charts[canvasId]) {
+        _charts[canvasId].destroy();
+        delete _charts[canvasId];
+    }
+    const canvas = document.getElementById(canvasId);
+    if (canvas) {
+        canvas.removeAttribute('style');
+        canvas.style.maxHeight = '100%';
+        canvas.style.width = '100%';
+    }
+}
+
+function _chartLibMissing(canvasId) {
+    if (typeof Chart !== 'undefined') return false;
+    const canvas = document.getElementById(canvasId);
+    const wrapper = canvas?.parentElement;
+    if (wrapper && !wrapper.querySelector('.chart-lib-missing')) {
+        const msg = document.createElement('div');
+        msg.className = 'chart-lib-missing';
+        msg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9a9a9a;font-size:11px;text-align:center;padding:10px;';
+        msg.textContent = 'Chart library failed to load.';
+        wrapper.appendChild(msg);
+    }
+    return true;
+}
+
+/**
+ * 24-hour time series with dual Y axes (rainfall + temperature)
+ */
+function createTimeSeriesChart(canvasId, labels, rainData, tempData, humData) {
+    _destroyChart(canvasId);
+    if (_chartLibMissing(canvasId)) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Rainfall (mm/h)',
+                    data: rainData,
+                    borderColor: CHART_COLORS.green,
+                    backgroundColor: 'rgba(26, 138, 80, 0.15)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    yAxisID: 'y',
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: tempData,
+                    borderColor: CHART_COLORS.amber,
+                    borderDash: [4, 2],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    yAxisID: 'y1',
+                    borderWidth: 1.5,
+                },
+                {
+                    label: 'Humidity (%)',
+                    data: humData,
+                    borderColor: CHART_COLORS.orange,
+                    borderDash: [2, 2],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 1,
+                    yAxisID: 'y1',
+                    borderWidth: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: {
+                    grid: { color: CHART_COLORS.gridLine },
+                    ticks: { maxTicksLimit: 8 },
+                },
+                y: {
+                    position: 'left',
+                    title: { display: true, text: 'Rainfall mm/h', color: CHART_COLORS.green },
+                    grid: { color: CHART_COLORS.gridLine },
+                    beginAtZero: true,
+                },
+                y1: {
+                    position: 'right',
+                    title: { display: true, text: 'Temp °C / Hum %' },
+                    grid: { drawOnChartArea: false },
+                },
+            },
+        },
+    });
+}
+
+/**
+ * 6-hour forecast bar chart with confidence bands
+ */
+function createForecastChart(canvasId, forecastData) {
+    _destroyChart(canvasId);
+    if (_chartLibMissing(canvasId)) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    const labels = forecastData.map(f => f.hour);
+    const rain = forecastData.map(f => f.predicted_rainfall);
+    const lower = forecastData.map(f => f.confidence_lower);
+    const upper = forecastData.map(f => f.confidence_upper);
+    const probs = forecastData.map(f => f.rainfall_prob);
+
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Predicted Rain (mm/h)',
+                    data: rain,
+                    backgroundColor: CHART_COLORS.green,
+                    borderWidth: 0,
+                    order: 2,
+                },
+                {
+                    label: 'Upper Bound',
+                    data: upper,
+                    backgroundColor: 'rgba(26, 138, 80, 0.2)',
+                    borderWidth: 0,
+                    order: 3,
+                },
+                {
+                    label: 'Rain Probability',
+                    data: probs,
+                    type: 'line',
+                    borderColor: CHART_COLORS.amber,
+                    pointRadius: 3,
+                    fill: false,
+                    yAxisID: 'y1',
+                    borderWidth: 2,
+                    order: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'mm/h', color: CHART_COLORS.green },
+                    grid: { color: CHART_COLORS.gridLine },
+                },
+                y1: {
+                    position: 'right',
+                    min: 0, max: 1,
+                    title: { display: true, text: 'Probability' },
+                    grid: { drawOnChartArea: false },
+                },
+            },
+        },
+    });
+}
+
+/**
+ * XAI horizontal bar chart — channel attributions
+ */
+function createAttributionChart(canvasId, labels, values) {
+    _destroyChart(canvasId);
+    if (_chartLibMissing(canvasId)) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Generate color gradient from amber to green
+    const colors = values.map((_, i) => {
+        const t = i / Math.max(values.length - 1, 1);
+        return t < 0.5 ? CHART_COLORS.amber : CHART_COLORS.green;
+    });
+
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Attribution',
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 0,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    max: Math.max(...values) * 1.2,
+                    grid: { color: CHART_COLORS.gridLine },
+                    ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                },
+                y: { grid: { display: false } },
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => (ctx.raw * 100).toFixed(1) + '% contribution',
+                    },
+                },
+            },
+        },
+    });
+}
+
+/**
+ * Reliability / calibration diagram
+ */
+function createReliabilityDiagram(canvasId, predicted, observed) {
+    _destroyChart(canvasId);
+    if (_chartLibMissing(canvasId)) return;
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: predicted.map(p => p.toFixed(1)),
+            datasets: [
+                {
+                    label: 'Model Calibration',
+                    data: observed,
+                    borderColor: CHART_COLORS.amber,
+                    backgroundColor: CHART_COLORS.amber,
+                    pointRadius: 4,
+                    fill: false,
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Perfect Calibration',
+                    data: predicted,
+                    borderColor: CHART_COLORS.grey,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    borderWidth: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Forecast Probability' },
+                    grid: { color: CHART_COLORS.gridLine },
+                },
+                y: {
+                    title: { display: true, text: 'Observed Frequency' },
+                    grid: { color: CHART_COLORS.gridLine },
+                    min: 0, max: 1,
+                },
+            },
+        },
+    });
+}
+
+</script>
+    <script>
+/* ═══════════════════════════════════════════════════════════════
+   VARSHA — Leaflet map module
+   - Esri Dark / Light tiles with theme switching
+   - Station markers with rich popups
+   - Heatmap layer toggle
+   - Wind vector overlay (animated canvas particles)
+   - Click-anywhere map inspector (nearest station)
+   ═══════════════════════════════════════════════════════════════ */
+
+let map;
+let markersLayer;
+let heatmapVisible = false;
+
+const MARKER_COLORS = {
+    severe:  '#c62828',
+    warning: '#d4690a',
+    watch:   '#a68a0a',
+    safe:    '#1a8a50',
+};
+
+// Continuous risk color scale, matching the reference "Risk probability"
+// legend gradient: teal-green → yellow-green → orange → red-orange → dark red.
+const RISK_COLOR_STOPS = [
+    [0.00, [36, 199, 165]],  // #24c7a5
+    [0.25, [213, 219, 69]],  // #d5db45
+    [0.50, [255, 181, 46]],  // #ffb52e
+    [0.75, [255, 77, 56]],   // #ff4d38
+    [1.00, [185, 0, 36]],    // #b90024
+];
+function riskColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < RISK_COLOR_STOPS.length - 1; i++) {
+        const [t0, c0] = RISK_COLOR_STOPS[i];
+        const [t1, c1] = RISK_COLOR_STOPS[i + 1];
+        if (t >= t0 && t <= t1) {
+            const f = (t - t0) / (t1 - t0 || 1);
+            const r = Math.round(c0[0] + (c1[0] - c0[0]) * f);
+            const g = Math.round(c0[1] + (c1[1] - c0[1]) * f);
+            const b = Math.round(c0[2] + (c1[2] - c0[2]) * f);
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+    return `rgb(${RISK_COLOR_STOPS[RISK_COLOR_STOPS.length - 1][1].join(',')})`;
+}
+
+const REGION_BOUNDS = {
+    north:     [[26, 72], [36, 82]],
+    south:     [[8, 74], [18, 82]],
+    east:      [[20, 82], [28, 97]],
+    west:      [[18, 68], [26, 76]],
+    central:   [[18, 74], [26, 82]],
+    northeast: [[22, 88], [28, 97]],
+};
+
+let currentMapTheme = 'dark';
+
+// Wind vector state
+let _windLayer = null;
+let _windVisible = false;
+let _windAnimFrame = null;
+let _cachedStations = [];
+
+let tileLayer = null;
+
+// Google Maps roadmap tiles via their public (keyless) tile endpoint — the
+// same technique widely used in open-source Leaflet + Google Maps demos.
+// NOTE: this is an undocumented endpoint, not the official Google Maps
+// JavaScript API — it can be rate-limited or change without notice. For a
+// production deployment, swap this for the official Maps JS API with an
+// API key instead.
+const GOOGLE_TILE_URL = 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+const GOOGLE_SUBDOMAINS = ['mt0', 'mt1', 'mt2', 'mt3'];
+
+function tileConfigForTheme() {
+    return {
+        url: GOOGLE_TILE_URL,
+        subdomains: GOOGLE_SUBDOMAINS,
+        attribution: 'Map data &copy; Google',
+    };
+}
+
+// Google's keyless tiles don't offer a dark variant, so "dark mode" is
+// approximated with a CSS filter on the tile pane only (markers/popups/
+// legend live in separate Leaflet panes and are unaffected).
+function applyMapThemeFilter(theme) {
+    const mapEl = document.getElementById('map');
+    if (mapEl) mapEl.classList.toggle('map-dark-filter', theme === 'dark');
+}
+
+// Purely informational: if no tile image has loaded after a few seconds,
+// show a small dismissable notice explaining why (this is common in
+// sandboxed/embedded previews that block remote image requests).
+function watchForBlockedTiles(layer) {
+    let loaded = false;
+    layer.once('tileload', () => { loaded = true; });
+
+    setTimeout(() => {
+        if (loaded) return;
+        const wrap = document.querySelector('.map-canvas-wrap');
+        if (!wrap || wrap.querySelector('.map-tile-notice')) return;
+        const notice = document.createElement('div');
+        notice.className = 'map-tile-notice';
+        notice.innerHTML = `
+            <div>
+                <strong>Showing the backup map.</strong>
+                Real map-tile images couldn't load (common in sandboxed previews). You're seeing
+                the built-in vector basemap instead — open this file in a normal browser tab with
+                internet access to get full photographic/street map tiles.
+            </div>
+            <button type="button" aria-label="Dismiss">&times;</button>
+        `;
+        notice.querySelector('button').addEventListener('click', () => notice.remove());
+        wrap.appendChild(notice);
+    }, 4000);
+}
+
+/* ── Inline vector basemap (always-on safety net) ───────────────────
+   Lives in a custom Leaflet pane positioned BELOW the tile pane
+   (z-index 150 vs tilePane's 200). When real tile images load, they
+   paint over this completely and it's invisible. When tile images
+   can't load (blocked network, no internet), the tile pane stays
+   empty/transparent and this shows through automatically — no
+   timeout/detection logic needed, it's purely a z-order effect. */
+
+const INDIA_OUTLINE = [
+    [68.2, 24.7], [69.6, 22.9], [70.9, 20.9], [72.8, 19.1], [72.9, 16.6],
+    [73.8, 15.5], [74.6, 13.9], [74.8, 12.9], [75.4, 11.6], [76.0, 10.4],
+    [76.2, 9.5], [77.0, 8.3], [77.5, 8.1], [78.3, 8.9], [79.3, 9.3],
+    [79.8, 10.3], [79.8, 11.4], [80.3, 13.1], [80.2, 15.9], [81.8, 16.5],
+    [82.2, 17.0], [83.3, 17.7], [84.8, 19.0], [85.0, 19.8], [86.5, 20.6],
+    [87.5, 21.6], [88.2, 21.6], [88.9, 22.0], [88.5, 23.6], [89.0, 24.0],
+    [90.0, 24.0], [91.7, 24.1], [92.3, 24.9], [91.5, 25.2], [92.0, 25.2],
+    [93.4, 24.1], [93.3, 23.0], [93.6, 22.7], [94.6, 23.8], [95.1, 26.6],
+    [97.4, 27.5], [96.4, 29.0], [95.4, 29.0], [94.2, 28.2], [93.4, 28.6],
+    [91.9, 27.8], [91.0, 27.9], [89.7, 26.7], [88.9, 27.1], [88.1, 27.5],
+    [87.9, 26.4], [86.0, 26.6], [83.9, 27.5], [82.0, 27.9], [80.7, 28.6],
+    [81.1, 30.2], [80.2, 30.3], [79.2, 30.8], [78.7, 31.0], [78.4, 32.5],
+    [79.2, 32.5], [79.0, 34.2], [78.0, 34.5], [76.9, 34.7], [76.0, 35.5],
+    [75.8, 34.5], [74.2, 34.8], [74.0, 34.0], [73.7, 34.3], [73.9, 33.9],
+    [74.4, 32.7], [74.5, 32.5], [75.2, 32.3], [74.4, 31.0], [73.4, 29.9],
+    [71.8, 28.0], [70.6, 27.9], [69.5, 26.9], [70.2, 25.7], [68.9, 24.4],
+    [68.2, 24.7],
+];
+const SRI_LANKA_OUTLINE = [
+    [79.9, 9.8], [80.9, 9.6], [81.9, 8.5], [81.7, 7.0], [81.2, 6.2],
+    [80.3, 5.9], [79.9, 7.3], [79.7, 8.5], [79.9, 9.8],
+];
+
+function toLatLngRing(ring) { return ring.map(([lon, lat]) => [lat, lon]); }
+
+let _vectorBasemapLayer = null;
+
+function buildVectorBasemap(theme) {
+    const isLight = theme === 'light';
+    const landFill = isLight ? '#e2e8f0' : '#1c2a1f';
+    const landStroke = isLight ? '#94a3b8' : '#3a4a3e';
+    const gridColor = isLight ? 'rgba(71,85,105,0.18)' : 'rgba(255,255,255,0.07)';
+
+    const group = L.layerGroup();
+    const opts = { pane: 'vectorBasemapPane', interactive: false };
+
+    for (let lat = 5; lat <= 40; lat += 5) {
+        L.polyline([[lat, 55], [lat, 100]], { ...opts, color: gridColor, weight: 1 }).addTo(group);
+    }
+    for (let lon = 60; lon <= 100; lon += 5) {
+        L.polyline([[0, lon], [40, lon]], { ...opts, color: gridColor, weight: 1 }).addTo(group);
+    }
+    L.polygon(toLatLngRing(INDIA_OUTLINE), { ...opts, color: landStroke, weight: 1.2, fillColor: landFill, fillOpacity: 1 }).addTo(group);
+    L.polygon(toLatLngRing(SRI_LANKA_OUTLINE), { ...opts, color: landStroke, weight: 1, fillColor: landFill, fillOpacity: 1 }).addTo(group);
+    return group;
+}
+
+function setVectorBasemapTheme(theme) {
+    if (!map) return;
+    if (_vectorBasemapLayer) map.removeLayer(_vectorBasemapLayer);
+    _vectorBasemapLayer = buildVectorBasemap(theme).addTo(map);
+}
+
+function initMap() {
+    if (typeof L === 'undefined') {
+        console.error('[VARSHA] Leaflet failed to load (CDN unreachable) — map disabled, rest of the app continues.');
+        const mapEl = document.getElementById('map');
+        if (mapEl) {
+            mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9a9a9a;font-family:sans-serif;text-align:center;padding:20px;">Map library failed to load.<br>Check your internet connection and reload.</div>';
+        }
+        // Stub out functions other modules call so they no-op instead of throwing
+        window.setMapTheme = () => {};
+        return;
+    }
+
+    markersLayer = L.layerGroup();
+
+    map = L.map('map', {
+        center: [22.5, 80.0],
+        zoom: 5,
+        minZoom: 4,
+        maxZoom: 18,
+        zoomControl: false,
+        attributionControl: true,
+    });
+
+    // Pane for the vector basemap, positioned below Leaflet's tile pane
+    // (z-index 200) so real tiles always paint over it when available.
+    map.createPane('vectorBasemapPane');
+    map.getPane('vectorBasemapPane').style.zIndex = 150;
+    setVectorBasemapTheme(currentMapTheme);
+
+    const initialTiles = tileConfigForTheme();
+    tileLayer = L.tileLayer(initialTiles.url, {
+        maxZoom: 20,
+        subdomains: initialTiles.subdomains,
+        attribution: initialTiles.attribution,
+        keepBuffer: 4,
+        updateWhenZooming: false,
+    }).addTo(map);
+    applyMapThemeFilter(currentMapTheme);
+    watchForBlockedTiles(tileLayer);
+
+    markersLayer.addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Make map globally accessible for tab resize fix
+    window.map = map;
+    window.setMapTheme = setMapTheme;
+
+    // Keep the map correctly sized whenever its container changes size —
+    // covers tab switches, wall mode, and window resizes in one place
+    // instead of relying solely on manual setTimeout(invalidateSize) calls.
+    if (typeof ResizeObserver !== 'undefined') {
+        let resizeT = null;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(resizeT);
+            resizeT = setTimeout(() => { if (map) map.invalidateSize(); }, 100);
+        });
+        const mapEl = document.getElementById('map');
+        if (mapEl) ro.observe(mapEl);
+    }
+
+    // Region buttons
+    document.querySelectorAll('.map-btn[data-region]').forEach(btn => {
+        btn.addEventListener('click', () => zoomToRegion(btn.dataset.region));
+    });
+
+    // Heatmap toggle
+    document.getElementById('toggle-heatmap')?.addEventListener('click', function() {
+        heatmapVisible = !heatmapVisible;
+        this.classList.toggle('active-layer', heatmapVisible);
+        this.setAttribute('aria-pressed', String(heatmapVisible));
+        if (markersLayer) {
+            markersLayer.eachLayer(marker => {
+                if (marker._heatCircle) {
+                    if (heatmapVisible) {
+                        marker._heatCircle.addTo(map);
+                    } else {
+                        map.removeLayer(marker._heatCircle);
+                    }
+                }
+            });
+        }
+    });
+
+    // Download active alerts as a real KML file (opens in Google Earth / My Maps)
+    document.getElementById('btn-download-kml')?.addEventListener('click', () => {
+        if (typeof downloadAlertsKml === 'function') downloadAlertsKml();
+    });
+
+    // ── Map click → Inspector ──
+    map.on('click', function(e) {
+        if (_cachedStations.length === 0) return;
+        const nearest = findNearestStation(e.latlng.lat, e.latlng.lng);
+        if (nearest) {
+            openMapInspector(nearest, e.latlng);
+        }
+    });
+}
+
+// ── Station markers ──
+
+const _markersById = new Map();
+
+function stationPopupHtml(st) {
+    const color = MARKER_COLORS[st.level] || MARKER_COLORS.safe;
+    const floodBar = Math.min(100, st.floodRisk);
+    const floodColor = floodBar > 60 ? MARKER_COLORS.severe : floodBar > 30 ? MARKER_COLORS.warning : MARKER_COLORS.safe;
+    return `
+        <div style="min-width:200px">
+            <div style="font-weight:700;font-size:14px;color:#d4940a;margin-bottom:4px">${st.name}</div>
+            <div style="font-size:11px;color:#6b6b6b;margin-bottom:6px">${st.state} — ${st.district || ''}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7">
+                <div>🌧 Rain: <b>${st.rain.toFixed(1)} mm/h</b></div>
+                <div>🌡 Temp: ${st.temp}°C | 💧 Humidity: ${st.humidity}%</div>
+                <div>💨 Wind: ${st.wind} km/h | ⛅ Pressure: ${st.pressure} hPa</div>
+                <div>⚡ CAPE: ${st.cape} J/kg</div>
+            </div>
+            <div style="margin-top:6px">
+                <div style="font-size:10px;color:#6b6b6b;margin-bottom:2px">FLOOD RISK: ${st.floodRisk}%</div>
+                <div style="background:#2a2a35;height:6px;width:100%">
+                    <div style="background:${floodColor};height:100%;width:${floodBar}%"></div>
+                </div>
+            </div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="display:inline-block;padding:2px 8px;background:${color};color:${st.level === 'watch' ? '#111' : '#fff'};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">${st.level}</span>
+                <button onclick="window.showStationModalById('${st.id}')" style="background:#2a2a35;border:1px solid #3a3a48;color:#d4940a;font-size:10px;padding:3px 8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;">Analytics & XAI →</button>
+            </div>
+        </div>
+    `;
+}
+
+function riskBucket(st) {
+    // Round to the nearest 5% — small jitter between refreshes shouldn't
+    // force a DOM-replacing icon rebuild for a visually-identical marker.
+    const risk = Math.max(st.extremeProb, st.floodRisk / 100);
+    return Math.round(risk * 20); // 0..20
+}
+
+function riskGlowIcon(st) {
+    const risk = Math.max(st.extremeProb, st.floodRisk / 100);
+    const color = riskColor(risk);
+    const size = Math.round(26 + risk * 34); // 26px..60px
+    const coreSize = Math.round(size * 0.34);
+    const html = `
+        <div class="risk-glow-halo" style="width:${size}px;height:${size}px;background:radial-gradient(circle, ${color}66 0%, ${color}33 45%, transparent 72%);"></div>
+        <div class="risk-glow-core" style="width:${coreSize}px;height:${coreSize}px;background:${color};box-shadow:0 0 0 2px rgba(255,255,255,0.85), 0 0 10px ${color}aa;"></div>
+    `;
+    return L.divIcon({
+        html, className: 'risk-glow-marker', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2],
+    });
+}
+
+function addStationMarkers(stations) {
+    if (!markersLayer || typeof L === 'undefined') return;
+    _cachedStations = stations;
+    const seenIds = new Set();
+
+    stations.forEach(st => {
+        seenIds.add(st.id);
+        const bucket = riskBucket(st);
+
+        let marker = _markersById.get(st.id);
+        if (marker) {
+            // Update an existing marker in place — no flicker, no popup interruption.
+            // Only rebuild the icon (a DOM replacement) when risk actually crossed
+            // a visible threshold, not on every sub-5% jitter.
+            marker.setLatLng([st.lat, st.lon]);
+            if (marker._riskBucket !== bucket) {
+                marker.setIcon(riskGlowIcon(st));
+                marker._riskBucket = bucket;
+            }
+            if (!marker.isPopupOpen()) {
+                marker.setPopupContent(stationPopupHtml(st));
+            } else {
+                marker._pendingPopupUpdate = st; // apply once popup closes
+            }
+        } else {
+            marker = L.marker([st.lat, st.lon], { icon: riskGlowIcon(st) });
+            marker._riskBucket = bucket;
+            marker.bindPopup(stationPopupHtml(st), { className: 'custom-popup', maxWidth: 280 });
+            marker.on('popupclose', () => {
+                if (marker._pendingPopupUpdate) {
+                    marker.setPopupContent(stationPopupHtml(marker._pendingPopupUpdate));
+                    marker._pendingPopupUpdate = null;
+                }
+            });
+            markersLayer.addLayer(marker);
+            _markersById.set(st.id, marker);
+        }
+
+        const color = riskColor(Math.max(st.extremeProb, st.floodRisk / 100));
+
+        // Rainfall heatmap circle (hidden by default)
+        if (st.rain > 2) {
+            const heatRadius = Math.min(50000, st.rain * 1500);
+            if (marker._heatCircle) {
+                marker._heatCircle.setLatLng([st.lat, st.lon]);
+                marker._heatCircle.setRadius(heatRadius);
+                marker._heatCircle.setStyle({ fillColor: color });
+            } else {
+                const heatCircle = L.circle([st.lat, st.lon], {
+                    radius: heatRadius, fillColor: color, fillOpacity: 0.12,
+                    color: 'transparent', interactive: false,
+                });
+                heatCircle._isHeatCircle = true;
+                marker._heatCircle = heatCircle;
+                if (heatmapVisible && map) heatCircle.addTo(map);
+            }
+        } else if (marker._heatCircle && map) {
+            map.removeLayer(marker._heatCircle);
+            marker._heatCircle = null;
+        }
+    });
+
+    // Remove markers for stations no longer present (not expected in this
+    // simulated feed since station IDs are stable, but kept for safety)
+    _markersById.forEach((marker, id) => {
+        if (!seenIds.has(id)) {
+            if (marker._heatCircle && map) map.removeLayer(marker._heatCircle);
+            markersLayer.removeLayer(marker);
+            _markersById.delete(id);
+        }
+    });
+
+    // Refresh wind vectors if visible
+    if (_windVisible) {
+        _drawWindOverlay();
+    }
+}
+
+function zoomToStation(lat, lon) {
+    if (map) {
+        map.flyTo([lat, lon], 10, { duration: 1.2 });
+    }
+}
+
+function zoomToRegion(region) {
+    if (!map || !REGION_BOUNDS[region]) return;
+    map.flyToBounds(REGION_BOUNDS[region], { duration: 0.8, padding: [20, 20] });
+}
+
+function setMapTheme(theme) {
+    currentMapTheme = theme;
+    if (!map || typeof L === 'undefined') return;
+    applyMapThemeFilter(theme);
+    setVectorBasemapTheme(theme);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ALERT ZONES + KML EXPORT
+//
+// Each active alert gets a risk-zone circle (approximated as an
+// N-sided polygon). The live map layer is drawn directly as Leaflet
+// polygons with keyed in-place updates — no full teardown/rebuild on
+// every refresh. KML (for Google Earth / My Maps) is a separate,
+// on-demand export: it's only built, as actual KML XML, the moment
+// the download button is clicked, instead of being generated and
+// thrown away on every 60s tick (that used to cost a string build +
+// a DOMParser XML parse + a full layer rebuild every refresh, for
+// output nobody was looking at most of the time).
+// ═══════════════════════════════════════════════════════════════
+
+let _lastAlerts = [];
+const _zonesById = new Map();
+let _zonesLayer = null;
+
+function escapeXml(s) {
+    return String(s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+}
+
+function zoneRadiusKm(level) {
+    return level === 'severe' ? 24 : level === 'warning' ? 16 : 10;
+}
+
+// Circle approximated as an N-sided ring. `order` picks the coordinate
+// order: 'latlng' for Leaflet, 'lonlat' for KML.
+function circlePoints(lat, lon, radiusKm, sides, order) {
+    const R = 6371;
+    const pts = [];
+    for (let i = 0; i <= sides; i++) {
+        const angle = (i / sides) * 2 * Math.PI;
+        const dLat = (radiusKm / R) * Math.cos(angle) * (180 / Math.PI);
+        const dLon = (radiusKm / R) * Math.sin(angle) * (180 / Math.PI) / Math.cos(lat * Math.PI / 180);
+        const plat = lat + dLat, plon = lon + dLon;
+        pts.push(order === 'lonlat' ? [plon, plat] : [plat, plon]);
+    }
+    return pts;
+}
+
+function levelHexColor(level) {
+    return level === 'severe' ? '#c62a1e' : level === 'warning' ? '#d4690a' : '#a68a0a';
+}
+
+function alertZonePopupHtml(a) {
+    return `
+        <div style="font-size:12px;max-width:230px">
+            <strong>${a.level.toUpperCase()} — ${a.district}, ${a.state}</strong><br/>
+            Rain (3h): ${a.rainfall3h}mm<br/>
+            Flood risk: ${Math.round(a.floodRisk * 100)}%<br/>
+            Confidence: ${a.confidence}
+        </div>
+    `;
+}
+
+// Renders active alert zones directly as Leaflet polygons, reusing
+// existing polygons in place (by alertId) instead of rebuilding the
+// whole layer every refresh.
+function renderAlertZones(alerts) {
+    if (!map || typeof L === 'undefined') return;
+    _lastAlerts = alerts;
+    if (!_zonesLayer) _zonesLayer = L.layerGroup().addTo(map);
+
+    const seen = new Set();
+    alerts.forEach(a => {
+        seen.add(a.alertId);
+        const color = levelHexColor(a.level);
+        const latlngs = circlePoints(a.lat, a.lon, zoneRadiusKm(a.level), 32, 'latlng');
+        let poly = _zonesById.get(a.alertId);
+        if (poly) {
+            poly.setLatLngs(latlngs);
+            poly.setStyle({ color, fillColor: color });
+            poly.setPopupContent(alertZonePopupHtml(a));
+        } else {
+            poly = L.polygon(latlngs, { color, weight: 2, fillColor: color, fillOpacity: 0.2 });
+            poly.bindPopup(alertZonePopupHtml(a));
+            _zonesLayer.addLayer(poly);
+            _zonesById.set(a.alertId, poly);
+        }
+    });
+
+    _zonesById.forEach((poly, id) => {
+        if (!seen.has(id)) {
+            _zonesLayer.removeLayer(poly);
+            _zonesById.delete(id);
+        }
+    });
+}
+
+function alertPlacemarksKml(a) {
+    const coords = circlePoints(a.lat, a.lon, zoneRadiusKm(a.level), 32, 'lonlat')
+        .map(([lon, lat]) => `${lon.toFixed(5)},${lat.toFixed(5)},0`).join(' ');
+    // KML color order is aabbggrr (alpha, blue, green, red) — opposite of CSS/hex.
+    const hex = levelHexColor(a.level).slice(1);
+    const kmlColor = '80' + hex.slice(4, 6) + hex.slice(2, 4) + hex.slice(0, 2);
+    const desc = `${a.level.toUpperCase()} — ${a.district}, ${a.state} | Rain(3h): ${a.rainfall3h}mm | `
+        + `Flood risk: ${Math.round(a.floodRisk * 100)}% | Confidence: ${a.confidence} | ${a.action}`;
+    return `
+    <Placemark>
+      <name>${escapeXml(a.station)} — ${a.level} zone</name>
+      <description>${escapeXml(desc)}</description>
+      <ExtendedData>
+        <Data name="level"><value>${a.level}</value></Data>
+        <Data name="rainfall3h"><value>${a.rainfall3h}</value></Data>
+        <Data name="floodRisk"><value>${Math.round(a.floodRisk * 100)}</value></Data>
+        <Data name="confidence"><value>${a.confidence}</value></Data>
+      </ExtendedData>
+      <Style>
+        <PolyStyle><color>${kmlColor}</color></PolyStyle>
+        <LineStyle><color>ff${kmlColor.slice(2)}</color><width>2</width></LineStyle>
+      </Style>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing><coordinates>${coords}</coordinates></LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    <Placemark>
+      <name>${escapeXml(a.station)}</name>
+      <description>${escapeXml(desc)}</description>
+      <Point><coordinates>${a.lon.toFixed(5)},${a.lat.toFixed(5)},0</coordinates></Point>
+    </Placemark>`;
+}
+
+function buildAlertsKml(alerts) {
+    const placemarks = alerts.map(alertPlacemarksKml).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>VARSHA Active Alerts</name>
+    <description>Generated ${new Date().toISOString()}</description>
+    ${placemarks}
+  </Document>
+</kml>`;
+}
+
+// KML is only ever built here, on demand, the moment the person actually
+// wants the file — not on every background data refresh.
+function downloadAlertsKml() {
+    const kml = buildAlertsKml(_lastAlerts);
+    const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `varsha-alerts-${new Date().toISOString().slice(0, 10)}.kml`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+window.renderAlertsKmlZones = renderAlertZones;
+window.downloadAlertsKml = downloadAlertsKml;
+
+// ═══════════════════════════════════════════════════════════════
+// WIND VECTOR OVERLAY — animated particles on a canvas layer
+// ═══════════════════════════════════════════════════════════════
+
+const WIND_DIR_MAP = {
+    N: 0, NE: 45, E: 90, SE: 135,
+    S: 180, SW: 225, W: 270, NW: 315,
+};
+
+function toggleWindVectors() {
+    _windVisible = !_windVisible;
+    if (_windVisible) {
+        _drawWindOverlay();
+    } else {
+        _removeWindOverlay();
+    }
+    return _windVisible;
+}
+
+function _removeWindOverlay() {
+    if (_windAnimFrame) {
+        cancelAnimationFrame(_windAnimFrame);
+        _windAnimFrame = null;
+    }
+    if (_windLayer && map) {
+        map.removeLayer(_windLayer);
+        _windLayer = null;
+    }
+}
+
+function _drawWindOverlay() {
+    _removeWindOverlay();
+    if (!map || _cachedStations.length === 0) return;
+
+    // Create a simple SVG-based wind arrow overlay using Leaflet markers
+    const arrows = [];
+    _cachedStations.forEach(st => {
+        const deg = WIND_DIR_MAP[st.windDir] || 0;
+        const speed = st.wind || 0;
+        const scale = Math.min(1.6, 0.4 + speed / 40);
+        const opacity = Math.min(0.9, 0.3 + speed / 60);
+
+        // SVG arrow pointing up (north=0°), rotated by wind direction
+        const svgIcon = L.divIcon({
+            className: 'wind-arrow-icon',
+            html: `<div style="transform:rotate(${deg}deg);opacity:${opacity};pointer-events:none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" style="transform:scale(${scale})">
+                    <path d="M12 2 L15 10 L12 8 L9 10 Z" fill="${currentMapTheme === 'light' ? '#334155' : '#94a3b8'}" stroke="none"/>
+                    <line x1="12" y1="8" x2="12" y2="20" stroke="${currentMapTheme === 'light' ? '#334155' : '#94a3b8'}" stroke-width="1.5" opacity="0.6"/>
+                </svg>
+            </div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+        });
+
+        arrows.push(L.marker([st.lat, st.lon], {
+            icon: svgIcon,
+            interactive: false,
+            zIndexOffset: -100,
+        }));
+    });
+
+    _windLayer = L.layerGroup(arrows);
+    _windLayer.addTo(map);
+}
+
+window.toggleWindVectors = toggleWindVectors;
+
+// ═══════════════════════════════════════════════════════════════
+// MAP CLICK INSPECTOR — find nearest station
+// ═══════════════════════════════════════════════════════════════
+
+function findNearestStation(lat, lng) {
+    if (_cachedStations.length === 0) return null;
+    let best = null;
+    let bestDist = Infinity;
+    _cachedStations.forEach(st => {
+        const d = haversine(lat, lng, st.lat, st.lon);
+        if (d < bestDist) {
+            bestDist = d;
+            best = st;
+        }
+    });
+    return best;
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function openMapInspector(station, clickLatLng) {
+    const panel = document.getElementById('map-inspector');
+    const title = document.getElementById('inspector-title');
+    const body = document.getElementById('inspector-body');
+    if (!panel || !title || !body) return;
+
+    title.textContent = `📍 ${station.name}`;
+
+    const floodColor = station.floodRisk > 60 ? 'var(--severe)' : station.floodRisk > 30 ? 'var(--warning)' : 'var(--safe)';
+
+    body.innerHTML = `
+        <div class="inspector-grid">
+            <div><span class="ig-label">CLICKED</span><br>${clickLatLng.lat.toFixed(4)}, ${clickLatLng.lng.toFixed(4)}</div>
+            <div><span class="ig-label">NEAREST STATION</span><br>${station.name}, ${station.state}</div>
+            <div><span class="ig-label">RAINFALL</span><br><span class="ig-value">${station.rain.toFixed(1)} mm/h</span></div>
+            <div><span class="ig-label">TEMPERATURE</span><br><span class="ig-value">${station.temp}°C</span></div>
+            <div><span class="ig-label">HUMIDITY</span><br><span class="ig-value">${station.humidity}%</span></div>
+            <div><span class="ig-label">WIND</span><br><span class="ig-value">${station.wind} km/h ${station.windDir}</span></div>
+            <div><span class="ig-label">PRESSURE</span><br><span class="ig-value">${station.pressure} hPa</span></div>
+            <div><span class="ig-label">CAPE</span><br><span class="ig-value">${station.cape} J/kg</span></div>
+        </div>
+        <div class="inspector-section">
+            <h4>Risk Assessment</h4>
+            <div class="inspector-grid">
+                <div><span class="ig-label">STATUS</span><br><span class="level-badge level-${station.level}" style="font-size:10px">${station.level}</span></div>
+                <div><span class="ig-label">FLOOD RISK</span><br><span class="ig-value" style="color:${floodColor}">${station.floodRisk}%</span></div>
+                <div><span class="ig-label">EXTREME PROB</span><br><span class="ig-value">${(station.extremeProb * 100).toFixed(0)}%</span></div>
+                <div><span class="ig-label">RAIN 1H PROB</span><br><span class="ig-value">${(station.rainProb1h * 100).toFixed(0)}%</span></div>
+            </div>
+        </div>
+        <div class="inspector-section">
+            <h4>Forecast Probabilities</h4>
+            <div class="inspector-grid">
+                <div><span class="ig-label">1H</span><br>${(station.rainProb1h * 100).toFixed(0)}%</div>
+                <div><span class="ig-label">3H</span><br>${(station.rainProb3h * 100).toFixed(0)}%</div>
+                <div><span class="ig-label">6H</span><br>${(station.rainProb6h * 100).toFixed(0)}%</div>
+                <div><span class="ig-label">CLOUD</span><br>${station.cloud}%</div>
+            </div>
+        </div>
+        <div style="margin-top:14px">
+            <button class="action-btn" style="width:100%;font-size:11px;" onclick="window.showStationModalById('${station.id}')">🔬 Full Analytics & XAI →</button>
+        </div>
+    `;
+
+    panel.classList.add('open');
+}
+
+function closeMapInspector() {
+    const panel = document.getElementById('map-inspector');
+    if (panel) panel.classList.remove('open');
+}
+
+// Close button
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('inspector-close')?.addEventListener('click', closeMapInspector);
+});
+
+window.closeMapInspector = closeMapInspector;
+
+</script>
+    <script>
+/* ═══════════════════════════════════════════════════════════════
+   VARSHA — Real-time alert stream
+   There is no live backend in this environment, so this module
+   simulates the same behaviour a WebSocket push would give:
+   at random intervals it asks the mock data layer to escalate a
+   random station and broadcasts the resulting alert through the
+   same onNewRealtimeAlert() pipeline the UI already understands.
+   ═══════════════════════════════════════════════════════════════ */
+
+let _simTimer = null;
+
+function connectAlertWebSocket() {
+    console.log('[VARSHA] Live alert stream active (simulated feed).');
+    scheduleNextSimulatedAlert();
+}
+
+function scheduleNextSimulatedAlert() {
+    clearTimeout(_simTimer);
+    // Next alert somewhere between 35s and 90s from now
+    const delay = 35000 + Math.random() * 55000;
+    _simTimer = setTimeout(() => {
+        if (window.VarshaMockAPI) {
+            const alert = window.VarshaMockAPI.pushSimulatedAlert();
+            onNewRealtimeAlert(alert);
+        }
+        scheduleNextSimulatedAlert();
+    }, delay);
+}
+
+/**
+ * Handle an incoming real-time alert.
+ */
+function onNewRealtimeAlert(alert) {
+    console.log('[Alert Stream] New alert:', alert.message);
+
+    showToast(alert);
+
+    if (!window._sirenMuted) {
+        playAlertBeep(alert.level);
+    }
+
+    // Refresh dashboard data so the new/escalated station shows everywhere
+    if (typeof fetchData === 'function') {
+        fetchData();
+    }
+}
+
+/**
+ * Show a toast notification for a new alert.
+ */
+function showToast(alert) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${alert.level}`;
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'toast-title';
+    titleEl.textContent = `${alert.level.toUpperCase()} — ${alert.station_name || alert.location?.district || 'Unknown'}`;
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'toast-body';
+    bodyEl.textContent = alert.message || 'New weather alert issued';
+
+    toast.appendChild(titleEl);
+    toast.appendChild(bodyEl);
+    container.appendChild(toast);
+
+    // Auto-remove after 8 seconds
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 8000);
+}
+
+/**
+ * Play an alert beep using Web Audio API.
+ */
+function playAlertBeep(level) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'sine';
+        if (level === 'severe') {
+            osc.frequency.value = 900;
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        } else if (level === 'warning') {
+            osc.frequency.value = 700;
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        } else {
+            osc.frequency.value = 550;
+            gain.gain.setValueAtTime(0.07, ctx.currentTime);
+        }
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        // Close the context shortly after so we don't leak AudioContexts
+        setTimeout(() => ctx.close().catch(() => {}), 400);
+    } catch (e) {
+        // Audio API not available — fail silently
+    }
+}
+
+</script>
+    <script>
+/* ═══════════════════════════════════════════════════════════════
+   VARSHA — Main Application Logic
+   Connects to backend API, manages all tab content, and orchestrates
+   the dashboard, alerts, stations, model info, and historical views.
+
+   NEW: Timeline scrubber, keyboard shortcuts, wall mode, basin filter,
+        siren mute, export bulletin (jsPDF), low-bandwidth mode.
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── Cached data ──
+let _stations = [];
+let _alerts = [];
+let _sortCol = null;
+let _sortAsc = true;
+let _currentTheme = 'dark';
+let _modelInfoData = null;
+
+// ── Feature state ──
+let _sirenMuted = false;
+let _wallMode = false;
+let _lowBand = false;
+let _timelinePlaying = false;
+let _timelineInterval = null;
+
+// ── Cached DOM references (populated once in cacheDom(), reused everywhere
+//    instead of re-querying the DOM on every render — cheap win since several
+//    of these are touched on every 60s refresh and every WS push). ──
+const _dom = {};
+function cacheDom() {
+    _dom.statStations = document.getElementById('stat-stations');
+    _dom.statAlerts = document.getElementById('stat-alerts');
+    _dom.statAlertsBreakdown = document.getElementById('stat-alerts-breakdown');
+    _dom.statRain = document.getElementById('stat-rain');
+    _dom.statRisk = document.getElementById('stat-risk');
+    _dom.alertsFeed = document.getElementById('alerts-feed');
+    _dom.alertsGrid = document.getElementById('alerts-grid');
+    _dom.tabAlertCount = document.getElementById('tab-alert-count');
+    _dom.stationsTbody = document.querySelector('#stations-table tbody');
+    _dom.stationSearch = document.getElementById('station-search');
+}
+
+// ── Keyed list renderer ──────────────────────────────────────────────
+// A lightweight keyed diff: reuses existing DOM nodes for items that are
+// still present (just refreshes their content via `updateItem`), creates
+// nodes only for genuinely new items, and removes nodes for items that
+// disappeared. This avoids the full innerHTML wipe-and-rebuild that was
+// happening on every 60s refresh / WS push, which caused unnecessary
+// reflow and made hover/scroll state reset on every tick.
+function keyedRender(container, items, getKey, createItem, updateItem) {
+    if (!container._keyedMap) container._keyedMap = new Map();
+    const prevMap = container._keyedMap;
+    const nextMap = new Map();
+    let cursor = container.firstChild;
+
+    items.forEach(item => {
+        const key = getKey(item);
+        let node = prevMap.get(key);
+        if (node) {
+            updateItem(node, item);
+            prevMap.delete(key);
+        } else {
+            node = createItem(item);
+        }
+        nextMap.set(key, node);
+        if (cursor !== node) {
+            container.insertBefore(node, cursor || null);
+        } else {
+            cursor = cursor.nextSibling;
+        }
+    });
+
+    // Anything left in prevMap is stale — remove it
+    prevMap.forEach(node => node.remove());
+    container._keyedMap = nextMap;
+}
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    cacheDom();
+    safeInit('theme', initTheme);
+    safeInit('tabs', initTabs);
+    safeInit('clock', initClock);
+    safeInit('map', initMap);
+    safeInit('alert stream', connectAlertWebSocket);
+    safeInit('filters', initFilterListeners);
+    safeInit('station search', initStationSearch);
+    safeInit('table sort', initTableSort);
+    safeInit('timeline', initTimeline);
+    safeInit('toolbar buttons', initToolbarButtons);
+    safeInit('keyboard shortcuts', initKeyboardShortcuts);
+
+    // Initial data load — must run even if map/theme/etc. above failed
+    safeInit('initial data fetch', fetchData);
+    safeInit('model info load', loadModelInfo);
+
+    // Auto-refresh every 60s
+    setInterval(() => safeInit('data refresh', fetchData), 60000);
+
+    // Historical tab
+    document.getElementById('btn-load-historical')
+        ?.addEventListener('click', () => safeInit('historical load', loadHistoricalData));
+
+    // Alerts refresh button
+    document.getElementById('btn-refresh-alerts')
+        ?.addEventListener('click', () => safeInit('alerts refresh', fetchData));
+});
+
+/**
+ * Run an init/update function in isolation: if it throws (e.g. an external
+ * CDN like Leaflet/Chart.js failed to load), log it and keep going instead
+ * of letting the whole app init sequence die on one failure.
+ */
+function safeInit(label, fn) {
+    try {
+        return fn();
+    } catch (err) {
+        console.error(`[VARSHA] "${label}" failed, continuing without it:`, err);
+        return undefined;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// THEME (LIGHT / DARK)
+// ══════════════════════════════════════════════════════════════════
+
+function initTheme() {
+    const saved = safeStorageGet('varsha-theme') || 'dark';
+    applyTheme(saved);
+
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const nextTheme = _currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+        });
+    }
+}
+
+function safeStorageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+
+function safeStorageSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* ignore — e.g. private browsing */ }
+}
+
+function applyTheme(theme) {
+    _currentTheme = theme;
+    safeStorageSet('varsha-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+
+    const iconEl = document.getElementById('theme-icon');
+    const textEl = document.getElementById('theme-text');
+    if (iconEl && textEl) {
+        if (theme === 'light') {
+            iconEl.textContent = '🌙';
+            textEl.textContent = 'Dark Mode';
+        } else {
+            iconEl.textContent = '☀️';
+            textEl.textContent = 'Light Mode';
+        }
+    }
+
+    if (typeof window.setMapTheme === 'function') {
+        window.setMapTheme(theme);
+    }
+    if (typeof window.updateChartTheme === 'function') {
+        window.updateChartTheme(theme);
+    }
+
+    // Refresh model info reliability chart if loaded
+    if (_modelInfoData && _modelInfoData.calibration && typeof createReliabilityDiagram === 'function') {
+        createReliabilityDiagram(
+            'chart-reliability',
+            _modelInfoData.calibration.predicted,
+            _modelInfoData.calibration.observed
+        );
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════════
+
+function initTabs() {
+    const btns = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-content');
+
+    btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            btns.forEach(b => b.classList.remove('active'));
+            panels.forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+
+            // Show timeline only on dashboard
+            const scrubber = document.getElementById('timeline-scrubber');
+            if (scrubber) {
+                if (btn.dataset.tab === 'dashboard') {
+                    scrubber.classList.remove('hidden');
+                } else {
+                    scrubber.classList.add('hidden');
+                }
+            }
+
+            // Fix map size when returning to dashboard
+            if (btn.dataset.tab === 'dashboard' && window.map) {
+                setTimeout(() => window.map.invalidateSize(), 120);
+            }
+        });
+    });
+}
+
+function switchToTab(index) {
+    const btns = document.querySelectorAll('.tab-btn');
+    if (btns[index]) btns[index].click();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════════════════════
+
+function initClock() {
+    const el = document.getElementById('ist-time');
+    function tick() {
+        const now = new Date();
+        // Convert to IST
+        const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+        el.textContent = ist.toLocaleTimeString('en-GB', { hour12: false });
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+
+function updateLastSync() {
+    const now = new Date();
+    const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+    document.getElementById('last-update').textContent = ist.toLocaleTimeString('en-GB', { hour12: false });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DATA FETCHING — simulated backend (see js/data-mock.js)
+// ══════════════════════════════════════════════════════════════════
+
+async function fetchData() {
+    try {
+        // Simulated backend: synchronous, in-memory, always available.
+        const rawStations = window.VarshaMockAPI.getStations();
+        const rawAlerts = window.VarshaMockAPI.getAlerts();
+
+        // Map stations to UI format
+        _stations = rawStations.map(st => {
+            const ep = st.probabilities.extreme_rain;
+            const fr = st.probabilities.flood_susceptibility;
+            let level = 'safe';
+            if (ep > 0.5 && fr > 0.5) level = 'severe';
+            else if (ep > 0.4 || fr > 0.5) level = 'warning';
+            else if (ep > 0.3 || fr > 0.3) level = 'watch';
+
+            return {
+                id: st.id,
+                name: st.name,
+                district: st.district,
+                state: st.state,
+                region: st.region,
+                basin: st.basin,
+                lat: st.lat,
+                lon: st.lon,
+                temp: st.current_conditions.temperature,
+                humidity: st.current_conditions.humidity,
+                rain: st.current_conditions.rainfall_rate,
+                wind: st.current_conditions.wind_speed,
+                windDir: st.current_conditions.wind_dir,
+                pressure: st.current_conditions.pressure,
+                cloud: st.current_conditions.cloud_cover,
+                cape: st.current_conditions.CAPE,
+                cin: st.current_conditions.CIN,
+                rainProb1h: st.probabilities.rain_1h,
+                rainProb3h: st.probabilities.rain_3h,
+                rainProb6h: st.probabilities.rain_6h,
+                extremeProb: ep,
+                floodRisk: Math.round(fr * 100),
+                level: level,
+            };
+        });
+
+        // Map alerts
+        _alerts = rawAlerts.map(a => ({
+            alertId: a.alert_id,
+            station: a.station_name || a.location.district,
+            state: a.state || '',
+            district: a.location.district,
+            level: a.level,
+            lat: a.location.lat,
+            lon: a.location.lon,
+            validFrom: a.valid_from,
+            validTo: a.valid_to,
+            rainfall3h: a.predicted_rainfall_3h,
+            extremeProb: a.extreme_rain_probability,
+            floodRisk: a.flood_susceptibility,
+            confidence: a.confidence,
+            triggers: a.triggers || [],
+            action: a.recommended_action,
+        }));
+
+        // Populate state & basin filter dropdowns
+        populateStateFilter();
+        populateBasinFilter();
+
+        // Update all views
+        renderDashboardStats();
+        renderAlertsFeed();
+        renderAlertsGrid();
+        renderStationsTable();
+        addStationMarkers(_stations);
+        if (typeof window.renderAlertsKmlZones === 'function') {
+            window.renderAlertsKmlZones(_alerts);
+        }
+        updateAlertTabBadge();
+        updateLastSync();
+
+    } catch (err) {
+        console.error('Failed to fetch data:', err);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DASHBOARD TAB
+// ══════════════════════════════════════════════════════════════════
+
+function renderDashboardStats() {
+    _dom.statStations.textContent = _stations.length;
+    _dom.statAlerts.textContent = _alerts.length;
+
+    let severeN = 0, warnN = 0, watchN = 0;
+    _alerts.forEach(a => {
+        if (a.level === 'severe') severeN++;
+        else if (a.level === 'warning') warnN++;
+        else if (a.level === 'watch') watchN++;
+    });
+    _dom.statAlerts.style.color = severeN > 0 ? 'var(--severe)' : 'var(--text-primary)';
+    _dom.statAlertsBreakdown.textContent = `${severeN} severe · ${warnN} warning · ${watchN} watch`;
+
+    const avgRain = _stations.length
+        ? _stations.reduce((s, st) => s + st.rain, 0) / _stations.length
+        : 0;
+    _dom.statRain.textContent = avgRain.toFixed(1) + ' mm/h';
+
+    const riskiest = _stations.reduce((max, st) => (!max || st.floodRisk > max.floodRisk) ? st : max, null);
+    if (riskiest) {
+        _dom.statRisk.textContent = riskiest.name;
+        _dom.statRisk.style.color = riskiest.floodRisk > 60 ? 'var(--severe)' : riskiest.floodRisk > 30 ? 'var(--warning)' : 'var(--text-primary)';
+    }
+}
+
+function renderAlertsFeed() {
+    const feed = _dom.alertsFeed;
+    if (_alerts.length === 0) {
+        feed._keyedMap = null; // reset so a future non-empty render rebuilds cleanly
+        feed.innerHTML = '<div class="feed-empty">No active alerts — all clear ✓</div>';
+        return;
+    }
+    if (feed.querySelector('.feed-empty') || feed.querySelector('.skeleton-line')) {
+        feed.innerHTML = '';
+        feed._keyedMap = null;
+    }
+
+    keyedRender(
+        feed,
+        _alerts,
+        a => a.alertId,
+        (a) => {
+            const el = document.createElement('div');
+            el.className = `alert-item alert-${a.level}`;
+            el.tabIndex = 0;
+            el.setAttribute('role', 'button');
+            el.innerHTML = alertFeedItemHtml(a);
+            el.addEventListener('click', () => {
+                document.querySelector('[data-tab="dashboard"]').click();
+                setTimeout(() => zoomToStation(a.lat, a.lon), 200);
+            });
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+            });
+            return el;
+        },
+        (el, a) => {
+            el.className = `alert-item alert-${a.level}`;
+            el.innerHTML = alertFeedItemHtml(a);
+        }
+    );
+}
+
+function alertFeedItemHtml(a) {
+    return `
+        <div class="alert-header">
+            <span class="alert-station">${a.station}</span>
+            <span class="alert-level-tag tag-${a.level}">${a.level}</span>
+        </div>
+        <div class="alert-details">
+            Rain: ${a.rainfall3h} mm/3h · Flood: ${Math.round(a.floodRisk * 100)}% · ${a.confidence}
+        </div>
+    `;
+}
+
+function updateAlertTabBadge() {
+    const badge = _dom.tabAlertCount;
+    if (_alerts.length > 0) {
+        badge.textContent = _alerts.length;
+        badge.style.display = 'inline';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALERTS TAB
+// ══════════════════════════════════════════════════════════════════
+
+function initFilterListeners() {
+    document.getElementById('filter-severity')?.addEventListener('change', renderAlertsGrid);
+    document.getElementById('filter-state')?.addEventListener('change', renderAlertsGrid);
+    document.getElementById('filter-basin')?.addEventListener('change', renderAlertsGrid);
+}
+
+function populateStateFilter() {
+    const sel = document.getElementById('filter-state');
+    const current = sel.value;
+    const states = [...new Set(_alerts.map(a => a.state))].sort();
+
+    // Keep "All States" option
+    sel.innerHTML = '<option value="all">All States</option>';
+    states.forEach(s => {
+        if (s) sel.innerHTML += `<option value="${s}">${s}</option>`;
+    });
+    sel.value = current;
+}
+
+function populateBasinFilter() {
+    const sel = document.getElementById('filter-basin');
+    if (!sel) return;
+    const current = sel.value;
+    const basins = [...new Set(_stations.map(s => s.basin || '').filter(Boolean))].sort();
+    sel.innerHTML = '<option value="all">All Basins</option>';
+    basins.forEach(b => {
+        sel.innerHTML += `<option value="${b}">${b}</option>`;
+    });
+    sel.value = current;
+}
+
+function renderAlertsGrid() {
+    const sevFilter = document.getElementById('filter-severity')?.value || 'all';
+    const stateFilter = document.getElementById('filter-state')?.value || 'all';
+    const basinFilter = document.getElementById('filter-basin')?.value || 'all';
+
+    let filtered = _alerts;
+    if (sevFilter !== 'all') filtered = filtered.filter(a => a.level === sevFilter);
+    if (stateFilter !== 'all') filtered = filtered.filter(a => a.state === stateFilter);
+
+    // Basin filter: match alert's station to the station record for its basin
+    if (basinFilter !== 'all') {
+        filtered = filtered.filter(a => {
+            const matchedStation = _stations.find(s => s.name === a.station || s.district === a.district);
+            return matchedStation && matchedStation.basin === basinFilter;
+        });
+    }
+
+    const grid = _dom.alertsGrid;
+    if (filtered.length === 0) {
+        grid._keyedMap = null;
+        grid.innerHTML = '<div class="feed-empty" style="grid-column:span 3">No alerts matching filters</div>';
+        return;
+    }
+    if (grid.querySelector('.feed-empty') || grid.querySelector('.skeleton-line')) {
+        grid.innerHTML = '';
+        grid._keyedMap = null;
+    }
+
+    keyedRender(
+        grid,
+        filtered,
+        a => a.alertId,
+        (a) => {
+            const card = document.createElement('div');
+            card.className = 'alert-card';
+            card.innerHTML = alertCardHtml(a);
+            return card;
+        },
+        (card, a) => { card.innerHTML = alertCardHtml(a); }
+    );
+}
+
+function alertCardHtml(a) {
+    return `
+        <div class="alert-badge badge-${a.level}">${a.level} ALERT</div>
+        <div class="alert-card-body">
+            <h4>${a.station}</h4>
+            <div class="alert-meta">${a.district}, ${a.state}</div>
+            <div class="alert-data-grid">
+                <span class="data-label">Predicted Rain (3h)</span><span>${a.rainfall3h} mm</span>
+                <span class="data-label">Extreme Prob</span><span>${(a.extremeProb * 100).toFixed(0)}%</span>
+                <span class="data-label">Flood Risk</span><span>${(a.floodRisk * 100).toFixed(0)}%</span>
+                <span class="data-label">Confidence</span><span>${a.confidence.toUpperCase()}</span>
+            </div>
+            <div class="alert-triggers">
+                <strong>Triggers:</strong>
+                <ul>${a.triggers.map(t => `<li>${t}</li>`).join('')}</ul>
+            </div>
+            <div class="alert-action">📋 ${a.action}</div>
+            <button class="action-btn" style="margin-top:8px;width:100%;font-size:11px;" onclick="window.showStationModalByName('${a.station}')">🔬 View Station Analytics & XAI</button>
+        </div>
+    `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STATIONS TAB
+// ══════════════════════════════════════════════════════════════════
+
+function debounce(fn, wait) {
+    let t = null;
+    return function debounced(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+    };
+}
+
+function initStationSearch() {
+    _dom.stationSearch?.addEventListener('input', debounce(renderStationsTable, 120));
+}
+
+function initTableSort() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        th.setAttribute('aria-sort', 'none');
+        th.setAttribute('tabindex', '0');
+        th.setAttribute('role', 'button');
+        const activate = () => {
+            const col = th.dataset.sort;
+            if (_sortCol === col) { _sortAsc = !_sortAsc; }
+            else { _sortCol = col; _sortAsc = true; }
+            document.querySelectorAll('.data-table th[data-sort]').forEach(h => {
+                h.classList.remove('sorted-asc', 'sorted-desc');
+                h.setAttribute('aria-sort', 'none');
+            });
+            th.classList.add(_sortAsc ? 'sorted-asc' : 'sorted-desc');
+            th.setAttribute('aria-sort', _sortAsc ? 'ascending' : 'descending');
+            renderStationsTable();
+        };
+        th.addEventListener('click', activate);
+        th.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+        });
+    });
+}
+
+function renderStationsTable() {
+    const query = (_dom.stationSearch?.value || '').toLowerCase();
+    let data = _stations.filter(s =>
+        s.name.toLowerCase().includes(query) || s.state.toLowerCase().includes(query)
+    );
+
+    // Sort
+    if (_sortCol) {
+        data.sort((a, b) => {
+            let va = a[_sortCol], vb = b[_sortCol];
+            if (typeof va === 'string') va = va.toLowerCase();
+            if (typeof vb === 'string') vb = vb.toLowerCase();
+            if (_sortCol === 'level') {
+                const ord = { severe: 0, warning: 1, watch: 2, safe: 3 };
+                va = ord[a.level]; vb = ord[b.level];
+            }
+            if (va < vb) return _sortAsc ? -1 : 1;
+            if (va > vb) return _sortAsc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    const tbody = _dom.stationsTbody;
+
+    if (data.length === 0) {
+        tbody._keyedMap = null;
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">No stations match your search.</td></tr>';
+        return;
+    }
+    if (tbody.querySelector('td[colspan]') || tbody.querySelector('.skeleton-line')) {
+        tbody.innerHTML = '';
+        tbody._keyedMap = null;
+    }
+
+    keyedRender(
+        tbody,
+        data,
+        s => s.id,
+        (s) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = stationRowHtml(s);
+            tr.addEventListener('click', () => openStationModal(s));
+            tr.tabIndex = 0;
+            tr.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStationModal(s); }
+            });
+            return tr;
+        },
+        (tr, s) => { tr.innerHTML = stationRowHtml(s); }
+    );
+}
+
+function stationRowHtml(s) {
+    return `
+        <td data-label="Station" style="font-weight:600;font-family:var(--font-sans)">${s.name}</td>
+        <td data-label="State">${s.state}</td>
+        <td data-label="Temp °C">${s.temp}</td>
+        <td data-label="Humidity %">${s.humidity}</td>
+        <td data-label="Rain mm/hr" style="font-weight:600;color:${s.rain > 20 ? 'var(--severe)' : s.rain > 5 ? 'var(--warning)' : 'var(--text-primary)'}">${s.rain.toFixed(1)}</td>
+        <td data-label="Wind km/h">${s.wind}</td>
+        <td data-label="Pressure hPa">${s.pressure}</td>
+        <td data-label="CAPE J/kg">${s.cape}</td>
+        <td data-label="Alert"><span class="level-badge level-${s.level}">${s.level}</span></td>
+        <td data-label="Flood Risk" style="font-weight:600;color:${s.floodRisk > 60 ? 'var(--severe)' : s.floodRisk > 30 ? 'var(--warning)' : 'var(--safe)'}">${s.floodRisk}%</td>
+    `;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STATION DETAIL MODAL — fetches from /api/station and /api/xai
+// ══════════════════════════════════════════════════════════════════
+
+async function openStationModal(station) {
+    const modal = document.getElementById('station-modal');
+    document.getElementById('modal-station-name').textContent =
+        `${station.name} — ${station.district}, ${station.state}`;
+
+    // Quick stats row
+    document.getElementById('modal-stats').innerHTML = `
+        <div class="modal-stat-chip"><span class="chip-label">RAINFALL</span>${station.rain.toFixed(1)} mm/h</div>
+        <div class="modal-stat-chip"><span class="chip-label">TEMPERATURE</span>${station.temp}°C</div>
+        <div class="modal-stat-chip"><span class="chip-label">HUMIDITY</span>${station.humidity}%</div>
+        <div class="modal-stat-chip"><span class="chip-label">WIND</span>${station.wind} km/h ${station.windDir}</div>
+        <div class="modal-stat-chip"><span class="chip-label">CAPE</span>${station.cape} J/kg</div>
+        <div class="modal-stat-chip"><span class="chip-label">FLOOD RISK</span><span style="color:${station.floodRisk > 60 ? 'var(--severe)' : station.floodRisk > 30 ? 'var(--warning)' : 'var(--safe)'}">${station.floodRisk}%</span></div>
+        <div class="modal-stat-chip"><span class="chip-label">STATUS</span><span class="level-badge level-${station.level}">${station.level}</span></div>
+    `;
+
+    modal.style.display = 'block';
+
+    // Close handlers
+    const closeBtn = modal.querySelector('.close-btn');
+    closeBtn.onclick = () => { modal.style.display = 'none'; };
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+    // Pull station detail + forecast + xai from the (simulated) data layer
+    try {
+        const detail = window.VarshaMockAPI.getStationDetail(station.id);
+        const forecast = window.VarshaMockAPI.getForecast(station.id);
+        const xai = window.VarshaMockAPI.getXai(station.id);
+
+        // ── Time Series Chart ──
+        if (detail.history_24h) {
+            const labels = detail.history_24h.map(h => {
+                const d = new Date(h.timestamp);
+                return d.getHours() + ':00';
+            });
+            const rain = detail.history_24h.map(h => h.rainfall);
+            const temp = detail.history_24h.map(h => h.temperature);
+            const hum = detail.history_24h.map(h => h.humidity);
+            createTimeSeriesChart('chart-timeseries', labels, rain, temp, hum);
+        }
+
+        // ── Forecast Chart ──
+        if (forecast.forecast) {
+            createForecastChart('chart-forecast', forecast.forecast);
+        }
+
+        // ── XAI Attribution Chart ──
+        if (xai.channel_attributions) {
+            const xaiLabels = Object.keys(xai.channel_attributions);
+            const xaiValues = Object.values(xai.channel_attributions);
+            createAttributionChart('chart-xai', xaiLabels, xaiValues);
+        }
+
+        // ── XAI Explanation Text ──
+        const xaiDiv = document.getElementById('xai-explanation');
+        let xaiHtml = `<p style="margin-bottom:8px"><strong>Confidence: ${(xai.confidence_score * 100).toFixed(0)}%</strong></p>`;
+        xaiHtml += `<p style="margin-bottom:8px">${xai.explanation_text}</p>`;
+        xaiHtml += '<div style="margin-top:8px"><strong>Triggers:</strong></div>';
+        xai.top_triggers.forEach(t => {
+            xaiHtml += `<div class="trigger-item">▸ ${t}</div>`;
+        });
+        xaiDiv.innerHTML = xaiHtml;
+
+    } catch (err) {
+        console.error('Failed to load station details:', err);
+    }
+}
+
+// Global modal triggers for map popups and alert cards
+window.showStationModalById = (stationId) => {
+    const s = _stations.find(st => st.id === stationId);
+    if (s) openStationModal(s);
+};
+
+window.showStationModalByName = (name) => {
+    if (!name) return;
+    const clean = name.trim().toLowerCase();
+    const s = _stations.find(st => 
+        st.name.toLowerCase() === clean || 
+        (st.district && st.district.toLowerCase() === clean)
+    );
+    if (s) openStationModal(s);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// MODEL INFO TAB — fetches from /api/model-info
+// ══════════════════════════════════════════════════════════════════
+
+async function loadModelInfo() {
+    try {
+        const info = window.VarshaMockAPI.getModelInfo();
+        _modelInfoData = info;
+
+        // Architecture diagram
+        document.getElementById('arch-diagram').textContent =
+`┌─────────────────┐     ┌───────────────────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
+│  INSAT-3D/3DR   │     │                               │     │                  │     │  Rainfall Probs      │
+│  Satellite Imgs  ├────▶│  SatelliteEncoder             │     │                  ├────▶│  (1,10,30 mm/hr)     │
+│  (B,T=8,C=6,H,W)│     │  (ResNet-18, shared-T)        │     │                  │     ├──────────────────────┤
+└─────────────────┘     │  → 128-ch features             ├────▶│                  │     │  Extreme Rain Prob   │
+                        └───────────────────────────────┘     │   UNet Decoder   ├────▶│  (50mm/3h, +3h/+6h)  │
+┌─────────────────┐     ┌───────────────────────────────┐     │   + Skip Conn.   │     ├──────────────────────┤
+│  ERA5/GFS       │     │                               │     │   → 64-ch feat   │     │  Convective Hazard   │
+│  Reanalysis     ├────▶│  AtmosphericEncoder            ├────▶│                  ├────▶│  (+2h, +4h, +6h)     │
+│  (B,C=12,H,W)   │     │  (4-layer CNN) → 64-ch        │     │                  │     ├──────────────────────┤
+└─────────────────┘     └───────────────────────────────┘     │                  │     │  Rainfall Regression │
+                                     ║                         │                  ├────▶│  (mm/hr, 6 horizons) │
+┌─────────────────┐     ┌────────────╨──────────────────┐     │                  │     └──────────────────────┘
+│  Copernicus DEM │     │  Temporal Fusion               │     │                  │
+│  GLO-30 Terrain  ├────▶│  Axial Attention (2 layers,   ├────▶│                  │
+│  (B,C=7,H,W)    │     │  8 heads, dim=192)            │     └──────────────────┘
+└─────────────────┘     └───────────────────────────────┘`;
+
+        // Data sources
+        const ds = info.data_sources;
+        document.getElementById('data-sources-list').innerHTML = `
+            <ul class="info-list">
+                <li><span class="il-label">Satellite</span>${ds.satellite}</li>
+                <li><span class="il-label">Reanalysis</span>${ds.reanalysis}</li>
+                <li><span class="il-label">Precipitation Target</span>${ds.precipitation_target}</li>
+                <li><span class="il-label">Elevation</span>${ds.elevation}</li>
+            </ul>
+        `;
+
+        // Training config
+        const tr = info.training;
+        document.getElementById('training-config').innerHTML = `
+            <ul class="info-list">
+                <li><span class="il-label">Optimizer</span>${tr.optimizer}</li>
+                <li><span class="il-label">Scheduler</span>${tr.scheduler}</li>
+                <li><span class="il-label">Epochs / Batch</span>${tr.epochs} epochs, batch size ${tr.batch_size}</li>
+                <li><span class="il-label">Loss Function</span>${tr.loss}</li>
+                <li><span class="il-label">Training Period</span>${tr.train_years}</li>
+                <li><span class="il-label">Validation</span>${tr.val_years}</li>
+                <li><span class="il-label">Test</span>${tr.test_years}</li>
+                <li><span class="il-label">Mixed Precision</span>${tr.mixed_precision ? 'Enabled (FP16)' : 'Disabled'}</li>
+            </ul>
+        `;
+
+        // Performance metrics table
+        const tbody = document.querySelector('#perf-metrics-table tbody');
+        tbody.innerHTML = '';
+        info.performance.thresholds.forEach(t => {
+            tbody.innerHTML += `<tr>
+                <td>${t.threshold_mm_hr} mm/hr</td>
+                <td>${t.BSS}</td>
+                <td>${t.PR_AUC}</td>
+                <td>${t.CSI}</td>
+                <td>${t.POD}</td>
+                <td style="color:${t.FAR > 0.4 ? 'var(--severe)' : 'inherit'}">${t.FAR}</td>
+                <td>${t.ETS}</td>
+            </tr>`;
+        });
+
+        // Flood module info
+        document.getElementById('flood-module-info').innerHTML = `
+            <ul class="info-list">
+                <li><span class="il-label">Model</span>XGBoost Classifier</li>
+                <li><span class="il-label">AUC-ROC</span>${info.performance.flood_module_auc}</li>
+                <li><span class="il-label">Architecture</span>${info.architecture.stage2}</li>
+                <li><span class="il-label">Features</span>predicted_rainfall_3h, predicted_rainfall_6h, api_7day, hand_min, slope_mean, twi_mean, flow_accum, drainage_density, month</li>
+            </ul>
+        `;
+
+        // Reliability diagram
+        if (info.calibration) {
+            createReliabilityDiagram(
+                'chart-reliability',
+                info.calibration.predicted,
+                info.calibration.observed
+            );
+        }
+
+    } catch (err) {
+        console.error('Failed to load model info:', err);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HISTORICAL TAB
+// ══════════════════════════════════════════════════════════════════
+
+async function loadHistoricalData() {
+    const date = document.getElementById('historical-date').value;
+    if (!date) return;
+
+    const container = document.getElementById('historical-results');
+    container.innerHTML = '<p class="text-muted">Loading…</p>';
+
+    try {
+        const data = window.VarshaMockAPI.getHistorical(date);
+
+        if (!data.records || data.records.length === 0) {
+            container.innerHTML = '<p class="text-muted">No data for this date.</p>';
+            return;
+        }
+
+        let html = `<h3 style="color:var(--accent);margin-bottom:10px">Predictions vs. Observations — ${data.date}</h3>`;
+        html += `<table class="historical-table">
+            <thead><tr>
+                <th>Station</th><th>State</th>
+                <th>Predicted (mm)</th><th>Observed (mm)</th><th>Error (mm)</th>
+                <th>Alert Issued</th><th>Verified</th>
+            </tr></thead><tbody>`;
+
+        data.records.forEach(r => {
+            const errClass = r.error_mm > 0 ? 'positive-err' : 'negative-err';
+            html += `<tr>
+                <td style="font-weight:600">${r.station_name}</td>
+                <td>${r.state}</td>
+                <td>${r.predicted_rainfall_mm.toFixed(1)}</td>
+                <td>${r.observed_rainfall_mm.toFixed(1)}</td>
+                <td class="${errClass}">${r.error_mm > 0 ? '+' : ''}${r.error_mm.toFixed(1)}</td>
+                <td>${r.alert_issued ? '⚠️ Yes' : '—'}</td>
+                <td>${r.alert_issued ? (r.alert_verified ? '✅ Yes' : '❌ No') : '—'}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+
+        // Summary stats
+        const errors = data.records.map(r => r.error_mm);
+        const mae = errors.reduce((s, e) => s + Math.abs(e), 0) / errors.length;
+        const rmse = Math.sqrt(errors.reduce((s, e) => s + e * e, 0) / errors.length);
+        const alertsIssued = data.records.filter(r => r.alert_issued).length;
+        const alertsVerified = data.records.filter(r => r.alert_issued && r.alert_verified).length;
+
+        html += `<div style="margin-top:14px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)">
+            MAE: ${mae.toFixed(1)} mm | RMSE: ${rmse.toFixed(1)} mm | Alerts Issued: ${alertsIssued} | Verified: ${alertsVerified}/${alertsIssued}
+        </div>`;
+
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = '<p style="color:var(--severe)">Error loading historical data.</p>';
+        console.error(err);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TIMELINE SCRUBBER
+// ══════════════════════════════════════════════════════════════════
+
+function initTimeline() {
+    const scrubber = document.getElementById('timeline-scrubber');
+    const range = document.getElementById('timeline-range');
+    const label = document.getElementById('timeline-current');
+    const playBtn = document.getElementById('timeline-play');
+
+    if (!scrubber || !range || !label || !playBtn) return;
+
+    // Show scrubber on dashboard tab (default active)
+    scrubber.classList.remove('hidden');
+
+    range.addEventListener('input', () => {
+        const val = parseInt(range.value);
+        label.textContent = val === 0 ? 'NOW' : (val > 0 ? `+${val}h` : `${val}h`);
+        onTimelineChange(val);
+    });
+
+    playBtn.addEventListener('click', toggleTimelinePlay);
+}
+
+function toggleTimelinePlay() {
+    const playBtn = document.getElementById('timeline-play');
+    const range = document.getElementById('timeline-range');
+    if (!playBtn || !range) return;
+
+    _timelinePlaying = !_timelinePlaying;
+    playBtn.textContent = _timelinePlaying ? '⏸' : '▶';
+
+    if (_timelinePlaying) {
+        _timelineInterval = setInterval(() => {
+            let val = parseInt(range.value) + 1;
+            if (val > 6) val = -2;
+            range.value = val;
+            range.dispatchEvent(new Event('input'));
+        }, 1500);
+    } else {
+        clearInterval(_timelineInterval);
+        _timelineInterval = null;
+    }
+}
+
+function onTimelineChange(hour) {
+    // Update stat cards to show forecast horizon label
+    const label = hour === 0 ? 'CURRENT' : (hour > 0 ? `FORECAST +${hour}h` : `HISTORY ${hour}h`);
+    const statsLabel = document.querySelector('.stat-card .stat-label');
+    // We could update chart highlight here; for now just mark the map title
+    const toolbar = document.querySelector('.toolbar-label');
+    if (toolbar) {
+        toolbar.textContent = hour === 0 ? 'MAP VIEW' : `MAP VIEW — ${label}`;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TOOLBAR BUTTONS (Wind, Siren, Export, Wall, Lo-Band, Shortcuts)
+// ══════════════════════════════════════════════════════════════════
+
+function initToolbarButtons() {
+    // Mobile "☰ Tools" overflow toggle
+    const moreBtn = document.getElementById('btn-nav-more');
+    const toolsGroup = document.getElementById('nav-tools-group');
+    if (moreBtn && toolsGroup) {
+        moreBtn.addEventListener('click', () => {
+            const open = toolsGroup.classList.toggle('open');
+            moreBtn.setAttribute('aria-expanded', String(open));
+        });
+        // Close the dropdown after picking a tool, and on outside click
+        toolsGroup.addEventListener('click', (e) => {
+            if (e.target.closest('.nav-tool-btn')) {
+                toolsGroup.classList.remove('open');
+                moreBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+        document.addEventListener('click', (e) => {
+            if (!toolsGroup.contains(e.target) && e.target !== moreBtn && toolsGroup.classList.contains('open')) {
+                toolsGroup.classList.remove('open');
+                moreBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    // Wind Vectors
+    document.getElementById('btn-wind')?.addEventListener('click', function() {
+        if (typeof window.toggleWindVectors === 'function') {
+            const on = window.toggleWindVectors();
+            this.classList.toggle('active', on);
+        }
+    });
+
+    // Siren Mute
+    document.getElementById('btn-siren')?.addEventListener('click', function() {
+        _sirenMuted = !_sirenMuted;
+        this.classList.toggle('muted', _sirenMuted);
+        this.innerHTML = _sirenMuted
+            ? '🔇 <span>Muted</span>'
+            : '🔊 <span>Siren</span>';
+        // Expose to the alert-stream module
+        window._sirenMuted = _sirenMuted;
+    });
+    window._sirenMuted = false;
+
+    // Export Bulletin
+    document.getElementById('btn-export')?.addEventListener('click', exportBulletin);
+
+    // Wall Mode
+    document.getElementById('btn-wall')?.addEventListener('click', toggleWallMode);
+    document.getElementById('wall-exit')?.addEventListener('click', toggleWallMode);
+
+    // Low-Bandwidth
+    document.getElementById('btn-lowband')?.addEventListener('click', function() {
+        _lowBand = !_lowBand;
+        document.body.classList.toggle('low-band', _lowBand);
+        this.classList.toggle('active', _lowBand);
+        if (_lowBand) {
+            // Switch to simpler tiles
+            if (typeof window.setMapTheme === 'function') {
+                // Keep current theme but reduce refresh rate
+                console.log('[VARSHA] Low-bandwidth mode enabled');
+            }
+        } else {
+            console.log('[VARSHA] Low-bandwidth mode disabled');
+        }
+    });
+
+    // Keyboard Shortcuts
+    document.getElementById('btn-shortcuts')?.addEventListener('click', () => {
+        document.getElementById('shortcuts-modal')?.classList.toggle('open');
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WALL MODE (FULLSCREEN)
+// ══════════════════════════════════════════════════════════════════
+
+function toggleWallMode() {
+    _wallMode = !_wallMode;
+    document.body.classList.toggle('wall-mode', _wallMode);
+    document.getElementById('btn-wall')?.classList.toggle('active', _wallMode);
+
+    // Switch to dashboard and invalidate map
+    if (_wallMode) {
+        document.querySelector('[data-tab="dashboard"]')?.click();
+    }
+    setTimeout(() => {
+        if (window.map) window.map.invalidateSize();
+    }, 200);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EXPORT WARNING BULLETIN (PDF via jsPDF)
+// ══════════════════════════════════════════════════════════════════
+
+function exportBulletin() {
+    if (typeof window.jspdf === 'undefined') {
+        alert('PDF library is loading, please try again in a moment.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const now = new Date();
+    const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+    const dateStr = ist.toISOString().slice(0, 10);
+    const timeStr = ist.toLocaleTimeString('en-GB', { hour12: false });
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VARSHA — Weather Warning Bulletin', 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${dateStr} ${timeStr} IST`, 14, 28);
+    doc.text(`Active Alerts: ${_alerts.length} | Stations Monitored: ${_stations.length}`, 14, 34);
+
+    doc.setDrawColor(212, 148, 10);
+    doc.line(14, 37, 196, 37);
+
+    // Alerts section
+    let y = 44;
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Active Alerts', 14, y);
+    y += 8;
+
+    if (_alerts.length === 0) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('No active alerts — all clear.', 14, y);
+        y += 8;
+    } else {
+        doc.setFontSize(9);
+        _alerts.forEach((a, i) => {
+            if (y > 270) {
+                doc.addPage();
+                y = 20;
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${i + 1}. [${a.level.toUpperCase()}] ${a.station} — ${a.state}`, 14, y);
+            y += 5;
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Rain (3h): ${a.rainfall3h} mm | Extreme: ${(a.extremeProb * 100).toFixed(0)}% | Flood: ${(a.floodRisk * 100).toFixed(0)}% | ${a.confidence}`, 18, y);
+            y += 5;
+            doc.text(`Action: ${a.action}`, 18, y);
+            y += 7;
+        });
+    }
+
+    // Station summary
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Station Summary', 14, y);
+    y += 7;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Station', 14, y);
+    doc.text('State', 55, y);
+    doc.text('Rain mm/h', 95, y);
+    doc.text('Temp °C', 125, y);
+    doc.text('Alert', 155, y);
+    doc.text('Flood %', 175, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+
+    _stations.forEach(s => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(s.name, 14, y);
+        doc.text(s.state, 55, y);
+        doc.text(s.rain.toFixed(1), 95, y);
+        doc.text(String(s.temp), 125, y);
+        doc.text(s.level, 155, y);
+        doc.text(s.floodRisk + '%', 175, y);
+        y += 4;
+    });
+
+    // Footer
+    doc.setFontSize(7);
+    doc.text('VARSHA — Vulnerability-Aware Regional Severe-weather Hazard Anticipation | Generated by VarshaNet v1.0.0', 14, 290);
+
+    doc.save(`VARSHA_Bulletin_${dateStr}.pdf`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════════════════════
+
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // Ignore if user is typing in an input/select
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+        switch (e.key) {
+            case ' ':
+                e.preventDefault();
+                toggleTimelinePlay();
+                break;
+            case '1': switchToTab(0); break;
+            case '2': switchToTab(1); break;
+            case '3': switchToTab(2); break;
+            case '4': switchToTab(3); break;
+            case '5': switchToTab(4); break;
+            case '/':
+                e.preventDefault();
+                document.getElementById('station-search')?.focus();
+                switchToTab(2);
+                break;
+            case 'Escape':
+                // Close modals/inspectors
+                document.getElementById('station-modal').style.display = 'none';
+                document.getElementById('shortcuts-modal')?.classList.remove('open');
+                if (typeof window.closeMapInspector === 'function') window.closeMapInspector();
+                if (_wallMode) toggleWallMode();
+                break;
+            case '?':
+                document.getElementById('shortcuts-modal')?.classList.toggle('open');
+                break;
+            case 'f':
+            case 'F':
+                toggleWallMode();
+                break;
+            case 'w':
+            case 'W':
+                document.getElementById('btn-wind')?.click();
+                break;
+            case 'm':
+            case 'M':
+                document.getElementById('btn-siren')?.click();
+                break;
+        }
+    });
+}
+
+</script>
+</body>
+</html>
+

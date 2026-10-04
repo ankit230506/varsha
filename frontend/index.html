@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VARSHA — Severe Weather Ops Center</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ═══════════════ TOP NAV ═══════════════ -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <div class="logo-block">
+                <img src="assets/logo.png" alt="VARSHA Emblem" class="brand-logo" />
+                <div>
+                    <h1 class="logo">VARSHA</h1>
+                    <span class="logo-sub">Severe Weather Early Warning System</span>
+                </div>
+            </div>
+            <span class="system-status"><span class="status-dot"></span>OPERATIONAL</span>
+        </div>
+        <div class="nav-right">
+            <button class="nav-tool-btn" id="btn-wind" title="Toggle Wind Vectors">💨 <span>Wind</span></button>
+            <button class="nav-tool-btn" id="btn-siren" title="Mute / Unmute Alert Siren">🔊 <span>Siren</span></button>
+            <button class="nav-tool-btn" id="btn-export" title="Export Warning Bulletin (PDF)">📄 <span>Export</span></button>
+            <button class="nav-tool-btn" id="btn-wall" title="Wall Mode (Fullscreen Map)">⛶ <span>Wall</span></button>
+            <button class="nav-tool-btn" id="btn-lowband" title="Low-Bandwidth / Field Mode">📶 <span>Lo-Fi</span></button>
+            <button class="nav-tool-btn" id="btn-shortcuts" title="Keyboard Shortcuts (?)">⌨ <span>Keys</span></button>
+            <span class="nav-divider">|</span>
+            <button class="theme-toggle-btn" id="theme-toggle" title="Switch Light / Dark Mode">
+                <span id="theme-icon">☀️</span>
+                <span id="theme-text">Light Mode</span>
+            </button>
+            <span class="nav-divider">|</span>
+            <span class="nav-label">LAST SYNC</span>
+            <span class="mono-val" id="last-update">--:--:--</span>
+            <span class="nav-divider">|</span>
+            <span class="nav-label">IST</span>
+            <span class="mono-val accent" id="ist-time">--:--:--</span>
+        </div>
+    </header>
+
+    <!-- ═══════════════ TAB BAR ═══════════════ -->
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="dashboard">
+            <span class="tab-icon">◉</span> Dashboard
+        </button>
+        <button class="tab-btn" data-tab="alerts">
+            <span class="tab-icon">⚠</span> Alerts
+            <span class="alert-count-badge" id="tab-alert-count" style="display:none">0</span>
+        </button>
+        <button class="tab-btn" data-tab="stations">
+            <span class="tab-icon">📡</span> Stations
+        </button>
+        <button class="tab-btn" data-tab="model-info">
+            <span class="tab-icon">🧠</span> Model Info
+        </button>
+        <button class="tab-btn" data-tab="historical">
+            <span class="tab-icon">📊</span> Historical
+        </button>
+    </nav>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="content-area">
+
+        <!-- ──── DASHBOARD TAB ──── -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="dashboard-layout">
+                <div class="map-panel">
+                    <div class="map-toolbar">
+                        <span class="toolbar-label">MAP VIEW</span>
+                        <div class="toolbar-btns">
+                            <button class="map-btn" id="toggle-heatmap">Rainfall Layer</button>
+                            <button class="map-btn" data-region="north">North</button>
+                            <button class="map-btn" data-region="south">South</button>
+                            <button class="map-btn" data-region="east">East</button>
+                            <button class="map-btn" data-region="west">West</button>
+                            <button class="map-btn" data-region="central">Central</button>
+                            <button class="map-btn" data-region="northeast">NE</button>
+                        </div>
+                    </div>
+                    <div id="map"></div>
+                </div>
+                <div class="sidebar">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">STATIONS</div>
+                            <div class="stat-value" id="stat-stations">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">ACTIVE ALERTS</div>
+                            <div class="stat-value" id="stat-alerts">--</div>
+                            <div class="stat-breakdown" id="stat-alerts-breakdown"></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">AVG RAINFALL</div>
+                            <div class="stat-value" id="stat-rain">-- mm/h</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">HIGHEST RISK</div>
+                            <div class="stat-value" id="stat-risk">--</div>
+                        </div>
+                    </div>
+
+                    <div class="feed-header">
+                        <h3>LIVE ALERT FEED</h3>
+                        <span class="feed-live-dot"></span>
+                    </div>
+                    <div class="alerts-feed" id="alerts-feed">
+                        <div class="feed-empty">Loading alerts…</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──── ALERTS TAB ──── -->
+        <div id="tab-alerts" class="tab-content">
+            <div class="filter-bar">
+                <select id="filter-severity">
+                    <option value="all">All Severities</option>
+                    <option value="severe">🔴 Severe</option>
+                    <option value="warning">🟠 Warning</option>
+                    <option value="watch">🟡 Watch</option>
+                </select>
+                <select id="filter-state">
+                    <option value="all">All States</option>
+                </select>
+                <select id="filter-basin">
+                    <option value="all">All Basins</option>
+                </select>
+                <button class="action-btn" id="btn-refresh-alerts">↻ Refresh</button>
+            </div>
+            <div class="alerts-grid" id="alerts-grid"></div>
+        </div>
+
+        <!-- ──── STATIONS TAB ──── -->
+        <div id="tab-stations" class="tab-content">
+            <div class="station-search-bar">
+                <input type="text" id="station-search" placeholder="Search stations…" class="search-input">
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="stations-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="name">Station ↕</th>
+                            <th data-sort="state">State ↕</th>
+                            <th data-sort="temp">Temp °C ↕</th>
+                            <th data-sort="humidity">Humidity % ↕</th>
+                            <th data-sort="rain">Rain mm/hr ↕</th>
+                            <th data-sort="wind">Wind km/h ↕</th>
+                            <th data-sort="pressure">Pressure hPa ↕</th>
+                            <th data-sort="cape">CAPE J/kg ↕</th>
+                            <th data-sort="level">Alert ↕</th>
+                            <th data-sort="floodRisk">Flood Risk ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ──── MODEL INFO TAB ──── -->
+        <div id="tab-model-info" class="tab-content">
+            <div class="model-info-grid" id="model-info-content">
+                <div class="info-card span-2">
+                    <h3>VarshaNet Architecture — Stage 1</h3>
+                    <div class="architecture-diagram" id="arch-diagram"></div>
+                </div>
+                <div class="info-card">
+                    <h3>Data Sources</h3>
+                    <div id="data-sources-list"></div>
+                </div>
+                <div class="info-card">
+                    <h3>Training Configuration</h3>
+                    <div id="training-config"></div>
+                </div>
+                <div class="info-card span-2">
+                    <h3>Performance Metrics by Threshold</h3>
+                    <table class="metrics-table" id="perf-metrics-table">
+                        <thead>
+                            <tr><th>Threshold</th><th>BSS</th><th>PR-AUC</th><th>CSI</th><th>POD</th><th>FAR</th><th>ETS</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="info-card" style="height:280px;display:flex;flex-direction:column;overflow:hidden;">
+                    <h3>Reliability Diagram (30mm/h threshold)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-reliability"></canvas>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h3>Stage 2 — FloodRisk Module</h3>
+                    <div id="flood-module-info"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──── HISTORICAL TAB ──── -->
+        <div id="tab-historical" class="tab-content">
+            <div class="filter-bar">
+                <input type="date" id="historical-date" value="2022-09-15">
+                <button class="action-btn" id="btn-load-historical">Load Historical Data</button>
+            </div>
+            <div id="historical-results" class="info-card">
+                <p class="text-muted">Select a date and click "Load" to view historical prediction vs. observation data.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- ──── STATION DETAIL MODAL (GLOBAL OVERLAY) ──── -->
+    <div id="station-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn">&times;</button>
+            <h2 id="modal-station-name">Station Name</h2>
+            <div class="modal-stats" id="modal-stats"></div>
+            <div class="station-dashboard">
+                <div class="chart-box">
+                    <h3>24-Hour Rainfall & Temperature</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-timeseries"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>6-Hour Forecast</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-forecast"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>Prediction Attribution (XAI)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-xai"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3>XAI Explanation</h3>
+                    <div id="xai-explanation" class="xai-text xai-text-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──── TOAST CONTAINER ──── -->
+    <div id="toast-container"></div>
+
+    <!-- ──── TIMELINE SCRUBBER (fixed footer) ──── -->
+    <div class="timeline-scrubber hidden" id="timeline-scrubber">
+        <button class="timeline-play-btn" id="timeline-play" title="Play / Pause">▶</button>
+        <span class="timeline-label" id="timeline-current">NOW</span>
+        <input type="range" class="timeline-range" id="timeline-range" min="-2" max="6" step="1" value="0">
+        <div class="timeline-ticks">
+            <span>-2h</span><span>-1h</span><span>NOW</span><span>+1h</span><span>+2h</span><span>+3h</span><span>+4h</span><span>+5h</span><span>+6h</span>
+        </div>
+    </div>
+
+    <!-- ──── MAP INSPECTOR SIDEBAR ──── -->
+    <aside class="map-inspector" id="map-inspector">
+        <button class="map-inspector-close" id="inspector-close">&times;</button>
+        <h3 id="inspector-title">Location Inspector</h3>
+        <div id="inspector-body">
+            <p style="color:var(--text-muted)">Click on the map to inspect a location…</p>
+        </div>
+    </aside>
+
+    <!-- ──── WALL MODE EXIT BUTTON ──── -->
+    <button class="wall-exit-btn" id="wall-exit">✕ Exit Wall Mode</button>
+
+    <!-- ──── KEYBOARD SHORTCUTS MODAL ──── -->
+    <div class="shortcuts-modal" id="shortcuts-modal">
+        <div class="shortcuts-body">
+            <h3>⌨ Keyboard Shortcuts</h3>
+            <div class="shortcut-row"><span>Play / Pause Timeline</span><span class="shortcut-key">Space</span></div>
+            <div class="shortcut-row"><span>Dashboard Tab</span><span class="shortcut-key">1</span></div>
+            <div class="shortcut-row"><span>Alerts Tab</span><span class="shortcut-key">2</span></div>
+            <div class="shortcut-row"><span>Stations Tab</span><span class="shortcut-key">3</span></div>
+            <div class="shortcut-row"><span>Model Info Tab</span><span class="shortcut-key">4</span></div>
+            <div class="shortcut-row"><span>Historical Tab</span><span class="shortcut-key">5</span></div>
+            <div class="shortcut-row"><span>Focus Station Search</span><span class="shortcut-key">/</span></div>
+            <div class="shortcut-row"><span>Toggle Wall Mode</span><span class="shortcut-key">F</span></div>
+            <div class="shortcut-row"><span>Toggle Wind Vectors</span><span class="shortcut-key">W</span></div>
+            <div class="shortcut-row"><span>Toggle Siren Mute</span><span class="shortcut-key">M</span></div>
+            <div class="shortcut-row"><span>Close / Dismiss</span><span class="shortcut-key">Esc</span></div>
+            <div class="shortcut-row"><span>Show This Help</span><span class="shortcut-key">?</span></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ SCRIPTS ═══════════════ -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

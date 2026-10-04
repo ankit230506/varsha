@@ -1,0 +1,103 @@
+project:
+  name: VARSHA
+  version: 0.1.0
+
+data:
+  grid:
+    lat_min: 6.5
+    lat_max: 38.0
+    lon_min: 66.0
+    lon_max: 100.0
+    resolution: 0.1  # degrees
+  satellite:
+    channels: [TIR1, TIR2, WV, SWIR]
+    cadence_minutes: 30
+    history_steps: 8  # 4 hours
+  reanalysis:
+    source: ERA5  # or GFS for inference
+    variables: [cape, cin, u850, v850, u200, v200, q850, q500, z500]
+    resolution: 0.25
+  qpe:
+    training_source: IMERG_Final_V07
+    inference_source: INSAT_HE
+  dem:
+    source: Copernicus_GLO30
+    resolution_m: 30
+    features: [elevation, slope, twi, hand, flow_accumulation, drainage_density, distance_to_stream]
+  paths:
+    raw_data: data/raw
+    processed_data: data/processed
+    models: models
+    outputs: outputs
+
+model:
+  stage1:
+    name: VarshaNet
+    satellite_encoder:
+      backbone: resnet18
+      pretrained: false
+      out_channels: 128
+    atmospheric_encoder:
+      layers: 4
+      out_channels: 64
+    axial_attention:
+      num_layers: 2
+      num_heads: 8
+      dim: 192
+      dropout: 0.1
+    decoder:
+      type: unet
+      skip_connections: true
+    prediction_heads:
+      rainfall_thresholds: [1, 10, 30]  # mm/hr
+      extreme_threshold_3h: 50  # mm/3h
+      forecast_horizons: [1, 2, 3, 4, 5, 6]  # hours
+      convective_horizons: [2, 4, 6]  # hours
+  stage2:
+    name: FloodRiskModule
+    model_type: xgboost
+    features: [predicted_rainfall_3h, predicted_rainfall_6h, api_7day, hand_min, slope_mean, twi_mean, flow_accum, drainage_density, month]
+    n_estimators: 500
+    max_depth: 8
+    class_weight: balanced
+
+training:
+  optimizer: adamw
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  scheduler: cosine_annealing
+  batch_size: 4
+  epochs: 50
+  early_stopping_patience: 10
+  mixed_precision: true
+  loss:
+    focal_gamma: 2.0
+    alpha_bce: 0.4
+    alpha_focal: 0.4
+    alpha_mse: 0.2
+  oversampling_ratio: 3.0
+  split:
+    train_years: [2016, 2017, 2018, 2019]
+    val_years: [2020]
+    test_years: [2021, 2022]
+
+evaluation:
+  metrics: [bss, pr_auc, csi, pod, far, ets, reliability]
+  thresholds: [1, 10, 30, 50]
+
+alerts:
+  watch:
+    rain_prob_threshold: 0.3
+    flood_threshold: 0.3
+  warning:
+    rain_prob_threshold: 0.5
+    flood_threshold: 0.5
+  severe:
+    rain_prob_threshold: 0.7
+    flood_threshold: 0.5
+
+deployment:
+  api_host: 0.0.0.0
+  api_port: 8000
+  update_interval_minutes: 30
+  gpu_device: 0
